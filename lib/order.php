@@ -1,17 +1,16 @@
 <?php
 /**
- * WooCommerce - Bizuno API
- * This class contains the  methods to handle cart orders
+ * ISP Hosted WordPress Plugin - order class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2024-03-01
- * @filesource /wp-content/plugins/bizuno-api/lib/order.php
+ * @version    3.x Last Update: 2025-04-14
+ * @filesource ISP WordPress /bizuno-erp/lib/order.php
  */
 
 namespace bizuno;
 
-class api_order extends api_common
+class order extends common
 {
     public $userID = 0;
 
@@ -31,22 +30,36 @@ class api_order extends api_common
         return $this->rest_close($output);
     }
     public function order_confirm($request) { // RESTful API to set the order tracking information
-        $data = $this->rest_open($request);
+        $data   = $this->rest_open($request);
         $result = $this->shipConfirm($data['data']);
         $output = ['result'=>!empty($result)?'Success':'Fail'];
         return $this->rest_close($output);
     }
+
+    /********************* Hooks for WooCommerce  *************************/
+    /**
+     *
+     * @param type $order_id
+     * @return type
+     */
+    public function bizuno_api_post_payment($order_id) {
+        if ( !empty ( \get_post_meta ( $order_id, 'bizuno_order_exported' ) ) ) { return; } // already downloaded, prevents duplicate download errors
+//        \update_post_meta ( $order_id, 'bizuno_order_exported', 0 ); // Does nothing in HPOS
+        if ( !empty ( \get_option ( 'bizuno_api_autodownload', false ) ) ) {
+            $this->orderExport($order_id); // call return to bit bucket as as all messsages are suppressed
+            $wooOrder = new \WC_Order($order_id);
+            $wooOrder->update_status('completed');
+        }
+    }
+
     /************ Hooks for WooCommerce Order Admin page ****************/
     public function bizuno_api_process_order_meta_box_action( $order ) {
         $this->bizuno_api_manual_download($order->id);
     }
     public function bizuno_api_manual_download($order_id = 0) {
-        $this->client_open();
         if (empty($order_id)) { $order_id = (int)$_GET['biz_order_id']; }
-        $this->bizunoCtlr();
         $this->orderExport($order_id);
-//        $this->setNotices(); // this is broken, may not need?
-        $this->client_close();
+//      $this->setNotices(); // this is broken, may not need?
         wp_redirect( esc_url(admin_url( 'edit.php?post_type=shop_order') ) );
         exit;
     }
@@ -61,20 +74,21 @@ class api_order extends api_common
      */
     public function orderExport($orderID=false)
     {
-        if ( !$this->bizActive)   { return; }
         if ( empty ( $orderID ) ) { error_log("Bad orderID passed: $orderID"); return; }
         $this->client_open();
-        if (!$order = $this->mapOrder($orderID)) { return; }
+        if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".print_r($order, true));  } // return;
         msgDebug("\nMapped order = ".print_r($order, true));
-        if ($this->api_local) { // we're here so just update the db
-            $mainID = $this->apiJournalEntry($order);
-        } else { // Use REST to connect and transmit data
-            $resp = $this->restGo('post', $this->options['url'], 'order/add', ['order'=>$order]);
-            $mainID = !empty($resp['ID']) ? $resp['ID'] : 0;
+        $resp   = json_decode($this->cURL('post', $order, 'order/add'), true);
+        $mainID = !empty($resp['ID']) ? $resp['ID'] : 0;
+        msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".print_r($resp, true));
+        if ( !empty($mainID) ) {
+            msgDebug("\nUpdating post meta as a valid ID was returned.");
+            $wcOrder = new \WC_Order($orderID);
+            $wcOrder->update_meta_data('bizuno_order_exported', 'yes');
+            $wcOrder->save_meta_data();
+            $wcOrder->save;
         }
-        msgDebug("\npost processing");
         $this->client_close();
-        if ( !empty($mainID) ) { update_post_meta ( $orderID, 'bizuno_order_exported', 1 ); }
     }
 
     /**
@@ -83,7 +97,11 @@ class api_order extends api_common
      * @return type
      */
     private function mapOrder($order_id) {
-        $order = wc_get_order($order_id);
+        $order = \wc_get_order($order_id);
+        // @TODO - get the transaction ID, Payfabric does not set the standard WooCommerce reference,
+        // instead they create a postmeta key = _transaction_id
+        // Need to properly set this in payfabric method: $order->set_transaction_id($transaction_id); $order->save(); 
+        $transID = !empty($order->get_transaction_id()) ? $order->get_transaction_id() : get_post_meta($order_id, '_transaction_id', true);
         $map = [
             'General' => [
 //              'OrderID'         => $this->options['prefix_order'] . $order->get_id(), // force a new invoice
@@ -102,9 +120,9 @@ class api_order extends api_common
                 'Title'           => $order->get_payment_method_title(),
                 'Status'          => $order->get_status(),
 //              'Authorization'   => $order_info['_payment_auth_code'], // Authorization code from credit cards that need to be captured to complete the sale
-                'TransactionID'   => $order->get_transaction_id()], // transaction ID from gateway
+                'TransactionID'   => $transID], // transaction ID from gateway
             'Billing' => [
-                'CustomerID'      => $order->get_customer_id(),
+                'CustomerID'      => $this->options['prefix_customer'].$order->get_customer_id(),
                 'PrimaryName'     => !empty($order->get_billing_company()) ? $order->get_billing_company() : $order->get_formatted_billing_full_name(),
                 'Contact'         => !empty($order->get_billing_company()) ? $order->get_formatted_billing_full_name() : '',
                 'Address1'        => $order->get_billing_address_1(),
@@ -184,7 +202,7 @@ class api_order extends api_common
         $defjID = get_option ( 'bizuno_api_journal_id' );
         $this->jID     = !empty($defjID) ? $defjID : 12; // defaults to Invoice if empty or Auto
         $this->auto_jID= get_option ( 'bizuno_api_autodownload' );
-        $account       = dbGetContact($values['Billing']['Email'], ['type'=>'email']);
+        $cID           = dbGetValue(BIZUNO_DB_PREFIX.'contacts', 'id', "type='c' AND email='{$values['Billing']['Email']}'");
         $_POST['waiting'] = 1;
         $_POST['AddUpdate_b'] = 1;
         $_POST['id'] = 0; // force new journal entry
@@ -195,8 +213,7 @@ class api_order extends api_common
         $_POST['terminal_date'] = viewFormat($values['General']['OrderDate'], 'date');
         $_POST['currency'] = getDefaultCurrency();
         $_POST['terms'] = 0; // should be Bizuno default
-        $_POST['contact_id_b'] = $account['contact']['id'];
-        $_POST['address_id_b'] = $account['address']['main']['address_id'];
+        $_POST['contact_id_b'] = $cID;
         $_POST['primary_name_b'] = $values['Billing']['PrimaryName'];
         $_POST['contact_b'] = $values['Billing']['Contact'];
         $_POST['address1_b'] = $values['Billing']['Address1'];
@@ -207,7 +224,7 @@ class api_order extends api_common
         $_POST['country_b'] = clean($values['Billing']['Country'], 'country');
         $_POST['telephone1_b'] = $values['Billing']['Telephone'];
         $_POST['email_b'] = $values['Billing']['Email'];
-        $_POST['contact_id_s'] = $account['contact']['id'];
+        $_POST['contact_id_s'] = $cID;
         $_POST['address_id_s'] = 0;
         $_POST['primary_name_s'] = $values['Shipping']['PrimaryName'];
         $_POST['contact_s'] = $values['Shipping']['Contact'];
@@ -332,7 +349,7 @@ class api_order extends api_common
                 // This can be written but needs to know the payment method, fetch the order record
                 // check to make sure it was posted successfully
                 // make sure it was journal 12 NOT 10, if 10 flag as payment received but product not available???
-                // build the save $this->main array, try to map the merchant to get gl_account and reference_id no need to cURL merchant
+                // build the save $this->main array, try to map the merchant to get gl_account and reference_id no need to io to merchant
                 // post it, close it as it is now paid
                 msgAdd('The order has been paid at the cart, the payment for this order must be completed manually in Bizuno.', 'caution');
             case 'unpaid':

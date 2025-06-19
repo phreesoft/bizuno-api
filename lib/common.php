@@ -1,66 +1,42 @@
 <?php
 /**
- * WooCommerce - Bizuno API
- * This class contains the  methods to handle a customers account
+ * ISP Hosted WordPress Plugin - common class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2023-11-02
- * @filesource /wp-content/plugins/bizuno-api/lib/common.php
+ * @version    3.x Last Update: 2025-04-11
+ * @filesource ISP WordPress /bizuno-erp/lib/common.php
  */
 
 namespace bizuno;
 
-class api_common
+class common
 {
-    public $api_active= false;
-    public $api_local = true;
-    public $userID = 0;
+    public $api_local = false;
 
     function __construct($options=[])
     {
         require_once (ABSPATH.'wp-admin/includes/plugin.php');
-        $this->bizActive = \is_plugin_active('bizuno-accounting/bizuno-accounting.php') ? true : false;
-        $this->options = $options;
-        if ( \is_plugin_active( 'bizuno-api/bizuno-api.php' ) ) {
-            $this->api_active= true;
-            if (!empty( get_option ( 'bizuno_api_url', '' ) ) ) { $this->api_local = false; }
-        }
-        $this->useOauth = \is_plugin_active( 'oauth2-provider/wp-oauth-server.php' ) ? true : false;
+        $this->defaults = ['client_id'=>'', 'client_secret'=>''];
+        $this->useOauth = \is_plugin_active('oauth2-provider/wp-oauth-server.php' ) ? true : false;
+        $this->options  = $options;
     }
-
-    /**
-     * REQUEST SIDE - Handles the initialization for a REST transaction
-     */
+    
     public function client_open()
     {
-        $this->bizunoCtlr();
-        $this->lang = getLang('bizuno');
+        
     }
-    /**
-     * REQUEST SIDE - Handles the closeout for a REST transaction
-     */
     public function client_close()
     {
         msgDebugWrite();
     }
-    /**
-     * RESPONSE SIDE - Handles the initialization for a REST transaction
-     */
     public function rest_open(\WP_REST_Request $request)
     {
-        $this->bizunoCtlr();
-        $this->lang= getLang('bizuno');
-        $this->user= wp_get_current_user();
-        $this->cID = get_user_meta($this->user->ID, 'bizuno_wallet_id', true);
-        msgDebug("\nBizuno Contact ID = $this->cID and WordPress user ID {$this->user->ID}");
-        $qParams   = $request->get_params(); // didn't work: get_query_params(); // retrieve the get parameters
+        $this->user = \wp_get_current_user();
+        $qParams = $request->get_params(); // didn't work: get_query_params(); // retrieve the get parameters
         return $qParams;
     }
-    /**
-     * RESPONSE SIDE - Handles the closeout for a REST transaction
-     */
-    public function rest_close($output, $status=200)
+    public function rest_close($output=[], $status=200)
     {
         global $msgStack;
         $output['message'] = $msgStack->error;
@@ -69,48 +45,69 @@ class api_common
         msgDebugWrite();
         return $resp;
     }
-
+    
     /**
-     * Instantiates the Bizuno controller (mostly loads the functions)
-     * @return \bizuno\portalCtl
-     */
-    public function bizunoCtlr() {
-        require_once ( plugin_dir_path( __FILE__ ) . "../../bizuno-accounting/controllers/portal/controller.php" );
-        return new \bizuno\portalCtl(); // sets up the Bizuno Environment
-    }
-
-    /**
-     * Communicates with the remote server through the RESTful API
-     * @global type $portal
+     * THIS NEEDS TO BE MOVED TO THE SHARED cURL which has a different set of request variables and sequences
      * @param type $type
-     * @param type $server
-     * @param type $endpoint
      * @param type $data
+     * @param type $endPoint
      * @return type
      */
-    public function restGo($type, $server, $endpoint, $data=[])
+    function cURL($type='get', $data=[], $endPoint='')
     {
-        global $portal;
-        $opts = [];
-        if (!empty($portal->useOauth)) { // Set the credentials
-            $portal->id   = $this->options['oauth_client_id'];
-            $portal->pass = $this->options['oauth_client_secret'];
-//      } else { // the following duplicates the credentials and causes failed transaction
-//          $opts = ['headers'=>['email'=>$this->options['rest_user_name'], 'pass'=>$this->options['rest_user_pass']]];
+        msgDebug("\nEntering cURL with endPoint = $endPoint and options = ".print_r($this->options, true));
+        $url    = $this->options['url'].'?bizRt=api/'.$endPoint;
+        $opts   = ['headers'=>['BIZUSER'=>$this->options['rest_user_name'], 'BIZPASS'=>$this->options['rest_user_pass']]];
+        $useragent = 'Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0';
+        $rData  = is_array($data) ? http_build_query($data) : $data;
+        if ($type == 'get') { $url .= '&'.$rData; }
+        $headers= [];
+        if (!empty($opts['headers'])) { foreach ($opts['headers'] as $key => $value) { $headers[] = "$key: $value"; } }
+        if (!empty($opts['cookies'])) { foreach ($opts['cookies'] as $key => $value) { $headers[] = "$key: $value"; } }
+        unset($opts['headers'], $opts['cookies']);
+        $options= [];
+        msgDebug("\nReady to send to url = $url");
+        $ch     = curl_init();
+        if (!empty($options)) { foreach ($options as $opt => $value) {
+            switch ($opt) {
+                case 'useragent': curl_setopt($ch, CURLOPT_USERAGENT, $useragent); break;
+                default:          curl_setopt($ch, constant($opt), $value); break;
+            }
+        } }
+        curl_setopt($ch, CURLOPT_URL,           $url);
+        curl_setopt($ch, CURLOPT_HTTPHEADER,    $headers);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER,true);
+        curl_setopt($ch, CURLOPT_TIMEOUT,       30); // in seconds
+        curl_setopt($ch, CURLOPT_HEADER,        false);
+        curl_setopt($ch, CURLOPT_VERBOSE,       false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER,false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST,false);
+        if (strtolower($type) == 'post') {
+            curl_setopt($ch, CURLOPT_POST, true);
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $rData);
         }
-        $resp = $portal->restRequest($type, $server, "wp-json/bizuno-api/v1/$endpoint", $data, $opts);
-        msgDebug("\nAPI Common received back from REST: ".print_r($resp, true));
-        if (isset($resp['message'])) {
+// for debugging cURL issues, uncomment below
+//$fp = fopen(BIZUNO_DATA."cURL_trace.txt", 'w');
+//curl_setopt($ch, CURLOPT_VERBOSE, true);
+//curl_setopt($ch, CURLOPT_STDERR, $fp);
+        $response = curl_exec($ch);
+        if (curl_errno($ch)) {
+            msgDebug('cURL Error # '.curl_errno($ch).'. '.curl_error($ch));
+            msgAdd('cURL Error # '.curl_errno($ch).'. '.curl_error($ch));
+            curl_close ($ch);
+            return;
+        } elseif (empty($response)) { // had an issue connecting with TLSv1.2, returned no error but no response (ALPN, server did not agree to a protocol)
+            msgAdd("Oops! I Received an empty response back from the cURL request. There was most likely a problem with the connection that was not reported.", 'caution');
+        }
+        curl_close ($ch);
+        msgDebug("\nAPI Common received back from REST: ".print_r($response, true));
+        if (isset($response['message'])) {
             msgDebug("\nMerging the msgStack!");
-            msgMerge($resp['message']);
+            msgMerge($response['message']);
         }
-        return $resp;
+        return $response;
     }
 
-    /**
-     * Pulls the responses from the message stack and sets the WordPress notices for the next reload
-     * @param array $msgStack
-     */
     public function setNotices()
     {
         global $msgStack;
@@ -121,10 +118,10 @@ class api_common
         }
         foreach ($msgStack as $key => $value) {
             switch ($key) {
-                case 'error':   foreach ($value as $msg) { $error   .= !empty($msg['text']) ? $msg['text']."\n" : ''; } break;
+                case 'error':   foreach ($value as $msg) { $error   .= $msg['text']."\n"; } break;
                 case 'caution':
-                case 'warning': foreach ($value as $msg) { $warning .= !empty($msg['text']) ? $msg['text']."\n" : ''; } break;
-                case 'success': foreach ($value as $msg) { $success .= !empty($msg['text']) ? $msg['text']."\n" : ''; } break;
+                case 'warning': foreach ($value as $msg) { $warning .= $msg['text']."\n"; } break;
+                case 'success': foreach ($value as $msg) { $success .= $msg['text']."\n"; } break;
             }
         }
         msgDebug("\nWriting the notice queue.\nOrder Download Error: $error"."\nOrder Download Warning: $warning"."\nOrder Download Success: $success");
@@ -134,7 +131,6 @@ class api_common
         if (!empty($error))   { $result = 'error';   msgAdd( $error,   'error',   true ); }
         return $result;
     }
-
     public function get_meta_values( $meta_key='', $post_type='post', $post_status='publish' ) {
         global $wpdb;
         if ( empty( $meta_key ) ) { return; }
@@ -142,31 +138,5 @@ class api_common
             WHERE pm.meta_key = %s AND p.post_type = %s AND p.post_status = %s";
         $meta_values = $wpdb->get_col( $wpdb->prepare( $sql , $meta_key, $post_type, $post_status ) );
         return $meta_values;
-    }
-
-    /***************************************
-     * these below should be moved to the account class
-     */
-    public function account_address_add($request)
-    {
-// Received back from REST
-    }
-
-    /**
-     * [Bizuno side] Pulls the wallet from the Bizuno payment extension and returns to the WooCommerce side
-     * @param type $request
-     */
-    public function account_wallet_list($request)
-    {
-        global $portal;
-        $data  = ['contactID' => !empty($qParams['contactID']) ? $qParams['contactID'] : ''];
-        msgDebug("\nWorking with contactID = ".print_r($data['contactID'], true));
-        $cID   = dbGetValue(BIZUNO_DB_PREFIX.'contacts', 'id', "short_name='".addslashes($data['contactID'])."'");
-        $output= [];
-        if (!empty($cID)) { $output['wallet'] = $portal->accountWalletList($cID); }
-        $resp  = new \WP_REST_Response($output);
-        $resp->set_status(200);
-        msgDebugWrite();
-        return $resp;
     }
 }

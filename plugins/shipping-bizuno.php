@@ -3,9 +3,9 @@
  * WooCommerce - Shipping Methods
  * This class contains the  methods to handle orders paid via purchase orders with approved credit
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2023-10-04
+ * @version    3.x Last Update: 2024-08-28
  * @filesource /bizuno-api/lib/shipping.php
  */
 
@@ -39,8 +39,8 @@ function bizuno_shipping_method_init() {
                         'description'=> __( 'Title to be display on site', 'bizuno-pro' ) ] ];
             }
             public function calculate_shipping( $package=[] ) { // Connect to Bizuno and Calculate Shipping charges
-                $admin = new \bizuno\api_admin();
-                $api   = new \bizuno\api_shipping($admin->options);
+                $admin = new \bizuno\admin();
+                $api   = new \bizuno\shipping($admin->options);
                 $rates = $api->getRates($package);
                 foreach ($rates as $rate) {
                     $wooRate = ['id'=>$rate['id'], 'label'=>$rate['title'], 'cost'=>$rate['quote']];

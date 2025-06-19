@@ -1,17 +1,16 @@
 <?php
 /**
- * WooCommerce - Bizuno API
- * This class contains the  methods to handle product uploads
+ * ISP Hosted WordPress Plugin - product class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2024-03-23
- * @filesource /wp-content/plugins/bizuno-api/lib/product.php
+ * @version    3.x Last Update: 2025-04-16
+ * @filesource ISP WordPress /bizuno-erp/lib/product.php
  */
 
 namespace bizuno;
 
-class api_product extends api_common
+class product extends common
 {
     public $userID = 0;
 
@@ -20,6 +19,24 @@ class api_product extends api_common
         parent::__construct($options);
         $this->fileBirdActive = is_plugin_active ( 'filebird/filebird.php' ) || is_plugin_active ( 'filebird-pro/filebird.php' ) ? true : false;
     }
+
+    /********************** Cron Events ************************/
+    public function cron_image()
+    {
+        // This takes a LONG LONG LONG time, typically makes the script time out so it was separated from the main upload script and moved here to a cron
+        msgDebug("\nEntering cron_image.");
+        $imageQueue = \get_option('bizuno_image_queue');
+        if (empty($imageQueue)) { return; } // queue is empty, nothing to do
+        foreach ($imageQueue as $image_id => $filename) {
+            $attach_data = \wp_generate_attachment_metadata( $image_id, $filename );
+            msgDebug("\nFinished wp_generate_attachment_metadata");
+            \wp_update_attachment_metadata( $image_id, $attach_data ); // TAKES REALLY LONG, UP TO A MINUTE, MOVE TO CRON
+            msgDebug("\nfinshed wp_update_attachment_metadata");
+            unset($imageQueue[$image_id]);
+            \update_option( 'bizuno_image_queue', $imageQueue ); // save as we go if the script times out the queue will still be reduced for the next iteration
+        }
+    }
+
     /********************** REST Endpoints ************************/
     public function product_price($request)
     {
@@ -44,7 +61,7 @@ class api_product extends api_common
     public function product_refresh($request)
     {
         $data   = $this->rest_open($request);
-        $success= $this->productRefresh($data['product']);
+        $success= $this->productRefresh($data['data']);
         $output = ['result'=>!empty($success)?'Success':'Fail'];
         return $this->rest_close($output);
     }
@@ -107,7 +124,7 @@ class api_product extends api_common
     {
         global $wcProduct;
         set_time_limit(60); // set timeout to 1 minute, imagemgk is verty slow when doing a full upload
-        msgDebug("\nEntering productImport with product = ".print_r($product, true));
+        msgDebug("\nEntering productImport with sku = {$product['SKU']} and sizeof product = ".sizeof($product));
         if (empty($product['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
         $slug = !empty($product['WooCommerceSlug']) ? $product['WooCommerceSlug'] : $product['Description'];
         if (isset($product['WeightUOM'])) { // convert weight (need to convert kg,lb,oz,g)
@@ -142,16 +159,14 @@ class api_product extends api_common
         $wcProduct->set_price(floatval($product['Price']));
         $wcProduct->set_regular_price(floatval($product['Price']));
         $wcProduct->set_sale_price('');
-//        $wcProduct->set_regular_price(!empty($product['RegularPrice']) ? $product['RegularPrice'] : '');
-//        $wcProduct->set_sale_price(!empty($product['SalePrice']) ? $product['SalePrice'] : '');
+//      $wcProduct->set_regular_price(!empty($product['RegularPrice']) ? $product['RegularPrice'] : '');
+//      $wcProduct->set_sale_price(!empty($product['SalePrice']) ? $product['SalePrice'] : '');
         $wcProduct->set_short_description(!empty($product['DescriptionSales']) ? $product['DescriptionSales'] : $product['Description']);
         $wcProduct->set_slug($this->getPermaLink($slug));
 //      $wcProduct->set_status('published');
         $wcProduct->set_stock_quantity($product['QtyStock'] > 0 ? $product['QtyStock'] : 0);
         $wcProduct->set_stock_status($product['QtyStock'] > 0 ? 'instock' : 'outofstock');
         $wcProduct->set_tax_status('taxable');
-        msgDebug("\nFirst save");
-        $wcProduct->save();
         msgDebug("\nChecking on sendMode and starting appropriate sequence");
         switch ($product['sendMode']) {
             default: // default needs to be here so the individula upload sends everyhthing.
@@ -170,7 +185,8 @@ class api_product extends api_common
         }
         msgDebug("\nSaving the product.");
         $wcProduct->save();
-        msgDebug("\nLeaving with price: ".$wcProduct->get_price());
+        msgDebug("\nChecking for Sell Qtys"); // Checking for price levels by Item
+        if (!empty($product['PriceByItem'])) { $this->priceVariations($wcProduct, $product['PriceByItem']); }
         return $product_id;
     }
 
@@ -179,7 +195,7 @@ class api_product extends api_common
         $existingID = \wc_get_product_id_by_sku($sku);
         msgDebug("\nFetched product ID = $existingID");
         if (empty($existingID)) { // The new way returns zero for products uploaded in early versions of the API, try to old way, just in case
-            $existingID = wpdbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($sku)."'", true);
+            $existingID = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($sku)."'", true);
             msgDebug("\nTried the old way, product ID is now = $existingID");
         }
         // check to make sure the type in WooCommerce matches the type being uploaded
@@ -241,14 +257,14 @@ class api_product extends api_common
         if (!empty($product['invAccessory']) && is_array($product['invAccessory'])) {
             $product['related'] = [];
             foreach ($product['invAccessory'] as $related) {
-                $product_id = wpdbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` LIKE '_sku' AND `meta_value`='{$related}'", true);
+                $product_id = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` LIKE '_sku' AND `meta_value`='{$related}'", true);
                 if ($product_id !== false) { $product['related'][] = $product_id; }
             }
             msgDebug("related items found:".print_r($product['related'], true));
         }
         if (isset($product['related'])) {
-//            wpdbGetResult("DELETE FROM `". PORTAL_DB_PREFIX . "postmeta` WHERE post_id = '". (int)$product_id . "' AND meta_key = '_crosssell_ids';");
-//            wpdbGetResult("INSERT INTO " . PORTAL_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $product['related'] . "';");
+//            dbGetResult("DELETE FROM `". PORTAL_DB_PREFIX . "postmeta` WHERE post_id = '". (int)$product_id . "' AND meta_key = '_crosssell_ids';");
+//            dbGetResult("INSERT INTO " . PORTAL_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $product['related'] . "';");
         }
     }
 
@@ -399,18 +415,18 @@ class api_product extends api_common
 //      global $wcProduct; // new way
         msgDebug("\nEntering productAttributes");
         if (empty($product['Attributes'])) { return; }
-        $result      = wpdbGetMulti(PORTAL_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
+        $result      = dbGetMulti(PORTAL_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
         $pa_attr_ids = [];
         foreach ($result as $row) { $pa_attr_ids[] = $row['term_taxonomy_id']; }
         if (sizeof($pa_attr_ids)) { // clear out the current attributes
-            wpdbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."term_relationships WHERE object_id=$product_id AND term_taxonomy_id IN (".implode(',',$pa_attr_ids).")");
+            dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."term_relationships WHERE object_id=$product_id AND term_taxonomy_id IN (".implode(',',$pa_attr_ids).")");
         }
         $productAttr = [];
         foreach ($product['Attributes'] as $idx => $row) {
             if (empty($row['title']) || empty($row['index'])) { continue; }
             $attrSlug= $this->getPermaLink($row['index']);
 //          $attrSlug= $this->getPermaLink($product['AttributeCategory'].'_'.strtolower($row['index'])); // creates a lot of attributes and causes filtering issues
-            $exists  = wpdbGetValue(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
+            $exists  = dbGetValue(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
             if (!$exists) {
                 $newAttr = [
                     'attribute_name'   => $attrSlug,
@@ -418,7 +434,7 @@ class api_product extends api_common
                     'attribute_type'   => 'text',
                     'attribute_orderby'=> 'name_num',
                     'attribute_public' => 0];
-                wpdbWrite(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', $newAttr);
+                dbWrite(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', $newAttr);
             }
             $productAttr["pa_$attrSlug"] = ['name'=>$row['title'],'value'=>$row['value'],'position'=>$idx,'is_visible'=>1,'is_variation'=>0,'is_taxonomy'=>0];
             // Update postmeta with attribute key => value pair for searching...
@@ -483,12 +499,9 @@ class api_product extends api_common
         foreach ( $variations['variations'] as $value ) {
             msgDebug("\nWorking with variation value: ".print_r($value, true));
             $variation_id = 0;
-            if (isset($existingIDs[$value['sku']])) {
-                $variation_id = $existingIDs[$value['sku']];
-                unset($existingIDs[$value['sku']]);
-            }
-            msgDebug("\nVariation ID = $variation_id");
-            if ( empty($variation_id) ) {
+            if (!empty($existingIDs)) { $variation_id = array_shift($existingIDs); }
+            else { // make a new variation
+                msgDebug("\nCreating new Variation post.");
                 $product = \wc_get_product($product_id);
                 $variation_post = [
                     'post_title'  => $product->get_name(),
@@ -499,26 +512,8 @@ class api_product extends api_common
                     'guid'        => $product->get_permalink()];
                 $variation_id = \wp_insert_post( $variation_post );
             }
+            msgDebug("\nVariation ID = $variation_id");
             $variation = new \WC_Product_Variation( $variation_id );
-            // Iterating through the variations attributes
-/*            foreach ($value['attributes'] as $attribute => $term_name ) {
-                $taxonomy = 'pa_'.$attribute; // The attribute taxonomy
-                msgDebug("\nChecking for taxonomy $taxonomy");
-                if ( ! \taxonomy_exists( $taxonomy ) ) {
-                    $args = ['hierarchical'=>false, 'label'=>ucfirst( $attribute ), 'query_var'=>true, 'rewrite'=>['slug'=>\sanitize_title($attribute)]];
-                    msgDebug("\nTaxonomy not found, making it with args = ".print_r($args, true));
-                    \register_taxonomy( $taxonomy, 'product_variation', $args);
-                }
-                // Check if the Term name exist and if not we create it.
-                if ( ! \term_exists( $term_name, $taxonomy ) ) { wp_insert_term( $term_name, $taxonomy ); } // Create the term
-                $term_slug = \get_term_by('name', $term_name, $taxonomy )->slug; // Get the term slug
-                // Get the post Terms names from the parent variable product.
-                $post_term_names =  \wp_get_post_terms( $product_id, $taxonomy, array('fields' => 'names') );
-                // Check if the post term exist and if not we set it in the parent variable product.
-                if ( ! in_array( $term_name, $post_term_names ) ) { wp_set_post_terms( $product_id, $term_name, $taxonomy, true ); }
-                // Set/save the attribute data in the product variation
-                \update_post_meta( $variation_id, 'attribute_'.$taxonomy, $term_slug );
-            } */
             msgDebug("\nSetting the SKU to {$value['sku']}");
             $variation->set_sku( $value['sku'] );
             msgDebug("\nSetting the attributes: ".print_r($value['attributes'], true));
@@ -565,12 +560,9 @@ class api_product extends api_common
         $varIDs = get_posts( $args );
         foreach ($varIDs as $variation) {
             $variation_id = $variation->ID;
-            $objVariation = new \WC_Product_Variation( $variation_id );
-            $sku = $objVariation->get_sku();
-            msgDebug("\nRead existing variation sku = $sku");
-            $output[$sku] = $variation_id;
+            $output[] = $variation_id;
         }
-        msgDebug("\nReturnging from getCurrentVariations with output: ".print_r($output, true));
+        msgDebug("\nReturning from getCurrentVariations with output: ".print_r($output, true));
         return $output;
     }
 
@@ -635,16 +627,16 @@ class api_product extends api_common
     {
         msgDebug("\nEntering setImageCleaner with product_id = $product_id");
         // first check thumbnails for multiple records, should only be one
-        $metaIDs = wpdbGetMulti(PORTAL_DB_PREFIX.'postmeta', "post_id=$product_id AND meta_key='_thumbnail_id'");
+        $metaIDs = dbGetMulti(PORTAL_DB_PREFIX.'postmeta', "post_id=$product_id AND meta_key='_thumbnail_id'");
         if (sizeof($metaIDs) > 1) {
             for ($i=1; $i<sizeof($metaIDs); $i++) { // earlier bug where multiple thumbnails were generated
                 msgDebug("\nDeleting duplicate thumbnail with ID = ".print_r($metaIDs[$i], true));
-                wpdbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE meta_id={$metaIDs[$i]['meta_id']}");
+                dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE meta_id={$metaIDs[$i]['meta_id']}");
                 \wp_delete_post( $metaIDs[$i]['post_id'], true );
             }
         }
         // If the same image is used for multiple products, then multiple media posts were generated, clean these up and start over.
-        $dupImages  = wpdbGetMulti(PORTAL_DB_PREFIX.'posts', "post_parent<>0 AND post_parent=$product_id AND post_type='attachment'", 'ID', ['ID']);
+        $dupImages  = dbGetMulti(PORTAL_DB_PREFIX.'posts', "post_parent<>0 AND post_parent=$product_id AND post_type='attachment'", 'ID', ['ID']);
         foreach ($dupImages as $imageID) {
             msgDebug("\nDeleting duplicate images with ID = ".print_r($imageID, true));
             \wp_delete_post( $imageID['ID'], true );
@@ -659,25 +651,25 @@ class api_product extends api_common
      * @return type
      */
     private function setImage($props, $product_id, $replace=false) {
-        msgDebug("\nEntering setImage with props = ".print_r($props, true));
+        msgDebug("\nEntering setImage with sizeof image = ".strlen($props['data']));
         $upload_folder= wp_upload_dir();
         $image_dir    = $upload_folder['basedir']."/{$props['path']}";
         $filename     = $image_dir.$props['name']; // '/path/to/uploads/2013/03/filename.jpg';
         $guid         = $props['path'] . $props['name'];
         msgDebug("\nLooking for all images at: $guid");
         // BOF - Clean out duplicate image posts pointing to the same file
-        $postIDs = wpdbGetMulti(PORTAL_DB_PREFIX.'postmeta', "meta_key='_wp_attached_file' AND meta_value='$guid'", 'post_id', ['post_id']);
+        $postIDs = dbGetMulti(PORTAL_DB_PREFIX.'postmeta', "meta_key='_wp_attached_file' AND meta_value='$guid'", 'post_id', ['post_id']);
         msgDebug("\nRead the following ID's for this image path: ".print_r($postIDs, true));
         for ($i=1; $i<sizeof($postIDs); $i++) { // earlier bug where multiple thumbnails were generated pointing to same file location
             msgDebug("\nDeleting duplicate posts with same path and ID = {$postIDs[$i]['post_id']}");
-            wpdbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."posts WHERE ID={$postIDs[$i]['post_id']}");
-            wpdbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE post_id={$postIDs[$i]['post_id']}");
+            dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."posts WHERE ID={$postIDs[$i]['post_id']}");
+            dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE post_id={$postIDs[$i]['post_id']}");
 //            \wp_delete_post( $postIDs[$i]['post_id'], true ); // seemed to leave some orphan meta data
         }
         if (sizeof($postIDs)>0) {
-            $postExists = wpdbGetValue(PORTAL_DB_PREFIX.'posts', 'ID', "ID={$postIDs[0]['post_id']}");
+            $postExists = dbGetValue(PORTAL_DB_PREFIX.'posts', 'ID', "ID={$postIDs[0]['post_id']}");
             msgDebug("\nRead to see if the record exists: ".print_r($postExists, true));
-            if (empty($postExists)) { wpdbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE post_id={$postIDs[0]['post_id']}"); }
+            if (empty($postExists)) { dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE post_id={$postIDs[0]['post_id']}"); }
             $imgID = !empty($postExists) ? $postIDs[0]['post_id'] :  0;
         } else {
             $imgID = 0;
@@ -714,14 +706,18 @@ class api_product extends api_common
         msgDebug("\nFinished inserting Image with returned id = ".print_r($attach_id, true));
         if (!is_wp_error($attach_id)) {
             if ($attach_id==0) { msgDebug("\nForced attachment_id to be = $imgID"); $attach_id = $imgID; } // for some reason, WP returns 0 when the ID is set going into post and no error
-            update_post_meta( $attach_id, '_wp_attached_file', $guid ); // this needs to be there at a minimum or media details will not render image
-            update_post_meta( $attach_id, '_wp_attachment_metadata', ['file'=>$filename] ); // this needs to be there at a minimum or media details will not render image
+            \update_post_meta( $attach_id, '_wp_attached_file', $guid ); // this needs to be there at a minimum or media details will not render image
+            \update_post_meta( $attach_id, '_wp_attachment_metadata', ['file'=>$filename] ); // this needs to be there at a minimum or media details will not render image
             $fileParent = $this->getFBParent($props['path']);
             if (false !== $fileParent) { $this->setFBAttach($attach_id, $fileParent); }
-            $attach_data = wp_generate_attachment_metadata( $attach_id, $filename );
-            msgDebug("\nFinished wp_generate_attachment_metadata");
-            wp_update_attachment_metadata( $attach_id, $attach_data ); // TAKES REALLY LONG, UP TO A MINUTE, MOVE TO CRON
-            msgDebug("\nfinshed wp_update_attachment_metadata");
+            msgDebug("\nQueuing image to generate all requested sizes later via cron.");
+            $imageQueue  = \get_option('bizuno_image_queue');
+            if (empty($imageQueue)) {
+                \add_option('bizuno_image_queue', []);
+                $imageQueue = [];
+            }
+            $imageQueue[$attach_id] = $filename;
+            \update_option( 'bizuno_image_queue', $imageQueue );
             msgDebug("\nReturning from setImage, set image ID = $attach_id");
             return $attach_id;
         }
@@ -760,7 +756,7 @@ class api_product extends api_common
             $result = $wpdb->get_row($sql);
             if (is_null($result)) {
                 msgDebug("\nInserting into fbv with dir = $dir and parent = $parent");
-                $parent = wpdbWrite($wpdb->prefix.'fbv', ['name'=>$dir, 'parent'=>$parent]);
+                $parent = dbWrite($wpdb->prefix.'fbv', ['name'=>$dir, 'parent'=>$parent]);
             } else {
                 msgDebug("\nFound parent ID: $result->id");
                 $parent = $result->id;
@@ -779,7 +775,7 @@ class api_product extends api_common
         msgDebug("\nRead from fbv_attachment_folder: ".print_r($result, true));
         if (is_null($result)) {
             msgDebug("\nInserting into fbv_attachment_folder parent = $fileParent and attach_id = $attach_id");
-            wpdbGetResult($wpdb->prepare("INSERT INTO {$wpdb->prefix}fbv_attachment_folder (folder_id, attachment_id) VALUES ($fileParent, $attach_id)"));
+            dbGetResult($wpdb->prepare("INSERT INTO {$wpdb->prefix}fbv_attachment_folder (folder_id, attachment_id) VALUES ($fileParent, $attach_id)"));
         }
     }
 
@@ -805,35 +801,230 @@ class api_product extends api_common
     }
 
     /**
+     * Creates/Updates the variations for the sell levels
+     * The variation data format, for each variation:
+        $variation_data =  array( 'sku' => '','regular_price' => '22.00', 'sale_price' => '','stock_qty' => 10,
+            'attributes' => array( 'size' => 'M', 'color' => 'Green', ) );
+     * @param object $product
+     * @param array $PriceByItem
+     * @return null
+     */
+    private function priceVariations($product, $PriceByItem='')
+    {
+        msgDebug("\nEntering priceVariations with sellQtys = ".print_r($PriceByItem, true));
+        $variations = $this->reformatSellUnits($PriceByItem);
+        \update_post_meta( $product->get_id(), 'bizSellQtys', $variations); // save the raw data for view pages
+        // Process the attributes
+        $allAttrs = $product->get_attributes();
+        $attrNames= [];
+        foreach ($allAttrs as $key => $tmp) {
+            if (is_int($key) || empty($key)) { unset($allAttrs[$key]); } // cleans out some earlier issues
+            else { $attrNames[] = $tmp['name']; }
+        }
+        $cnt      = 0;
+        msgDebug("\nEntering processing loop with attr keys = ".print_r($attrNames, true));
+        foreach ($variations['attributes'] as $attr) {
+            msgDebug("\nProcessing attribute: ".print_r($attr, true));
+            $attribute = new \WC_Product_Attribute();
+            $attribute->set_name( $attr['name'] );
+            $attribute->set_options( $attr['options'] );
+            $attribute->set_position( $cnt );
+            $attribute->set_visible( true );
+            $attribute->set_variation( true ); // identify it as a variation
+            $slug= sanitize_title($attr['name']);
+            $allAttrs[$slug]= $attribute;
+//            $key = array_search($attr['name'], $attrNames);
+//            msgDebug("\nSearsch results found key = $key");
+//            if (false===$key) { msgDebug("\nAdding new attribute"); $allAttrs[$slug]= $attribute; }
+//            else              { msgDebug("\nUpdating attribute");   $allAttrs[$slug] = $attribute; }
+            $cnt++;
+        }
+        msgDebug("\nSetting attributes: ".print_r($allAttrs, true));
+        $product->set_attributes( $allAttrs );
+        // get the current variations keyed by product id for searching
+        $existingIDs = $this->getCurrentVariations($product->get_id());
+        // foreach variation in the request
+        foreach ( $variations['variations'] as $value ) {
+            $variation_id = !empty($existingIDs) ? array_shift($existingIDs) : 0;
+            msgDebug("\nVariation ID = $variation_id and value = ".print_r($value, true));
+            if ( empty($variation_id) ) {
+                $vProd = \wc_get_product($product->get_id());
+                $variation_post = [
+                    'post_title'  => $vProd->get_name(),
+                    'post_name'   => 'product-'.$product->get_id().'-variation',
+                    'post_status' => 'publish',
+                    'post_parent' => $vProd->get_id(),
+                    'post_type'   => 'product_variation',
+                    'guid'        => $vProd->get_permalink()];
+                $variation_id = \wp_insert_post( $variation_post );
+            }
+            $variation = new \WC_Product_Variation( $variation_id );
+            if ($this->variationNoDiff($variation, $value)) { msgDebug("\nNo changes, continuing..."); continue; }
+//          $variation->set_sku( $value['sku'] ); // $product->sku (They all use the same SKU)
+            msgDebug("\nSetting the attributes: ".print_r($value['attributes'], true));
+            $variation->set_attributes( $value['attributes'] );
+            $variation->set_weight($value['weight']); // weight (reseting)
+//          $variation->set_length(); //Set the product length.
+//          $variation->set_width(); //Set the product width.
+//          $variation->set_height(); //Set the product height.
+            $variation->set_regular_price( $value['price'] );
+            if ( empty( $value['sale_price'] ) ) {
+                $variation->set_price( $value['price'] );
+                $variation->set_sale_price( '' );
+            } else {
+                $variation->set_price( $value['sale_price'] );
+                $variation->set_sale_price( $value['sale_price'] );
+            }
+//          if ( ! empty($value['stock']) ) { // commented out to always manage stock
+            $variation->set_stock_quantity( $value['stock'] );
+            $variation->set_manage_stock(true);
+            $variation->set_stock_status('');
+            $variation->set_backorders('yes'); // Options: 'yes', 'no' or 'notify'
+//          } else {
+//              $variation->set_manage_stock(false);
+//          }
+            msgDebug("\nSaving variation");
+            $variation->save(); // Save the data
+        }
+        // The line below will set the default variation selection, set to none for now
+        $default_attr = []; // $variations['variations'][0]['attributes']
+        msgDebug("\nSetting default variations to ".print_r($default_attr, true));
+        $defAttr = $product->get_default_attributes( );
+        if (json_encode($defAttr) <> json_encode($default_attr)) { $product->set_default_attributes( $default_attr ); }
+        // delete left over variants that are no longer used
+        if (sizeof($existingIDs) > 0) { // We still have some more variations, delete them
+            msgDebug("\nLeft over variation ID's Deleting: ".print_r($existingIDs, true));
+            foreach ($existingIDs as $variation_id) {
+                $variation = new \WC_Product_Variation( $variation_id );
+                $variation->delete();
+            }
+        }
+        $product->save(); // samve the parent product
+    }
+
+    //     [PriceByItem] => {"total":3,"rows":[{"label":"Each (1 pieces)","qty":"1","weight":79.8,"price":288.47,"stock":7},{"label":"Pallet Layer (10 pieces)","qty":"10","weight":798,"price":2375.66,"stock":0},{"label":"Pallet (20 pieces)","qty":"20","weight":1596,"price":4072.56,"stock":0}]}
+
+    private function reformatSellUnits($sellQtys)
+    {
+        $qtys = json_decode($sellQtys, true);
+        $output = ['attributes'=>[['name'=>'price-discounts', 'options'=>[]]], 'variations'=>[]];
+        foreach ($qtys['rows'] as $row) {
+            $output['variations'][] = ['qty'=>$row['qty'], 'price'=>$row['price'], 'weight'=>$row['weight'],'stock'=>$row['stock'],
+                'attributes'=>['price-discounts'=>$row['label']]];
+            $output['attributes'][0]['options'][] = $row['label'];
+        }
+        msgDebug("\nReturning from reformatSellUnits with output = ".print_r($output, true));
+        return $output;
+    }
+
+    /**
+     * Checks to see if anything values changed in the variation from what is in the db
+     * @param type $variation
+     * @param type $value
+     */
+    private function variationNoDiff($variation, $value)
+    {
+        msgDebug("\nEntering variationNoDiff with value = ".print_r($value, true));
+        unset($value['qty']);
+        if (!$variation->backorders_allowed()) { return false; } // forse setting of backorders allowed
+        $current = [
+            'price'     => $variation->get_regular_price(),
+            'weight'    => $variation->get_weight(),
+            'stock'     => (string)$variation->get_stock_quantity(), // needs to be string so json compares properly
+            'attributes'=> $variation->get_attributes()
+        ];
+        msgDebug("\nComparing to existing: ".print_r($current, true));
+        return json_encode($value) == json_encode($current) ? true : false;
+    }
+
+    /**
      * Refreshes a block of products in the WooCommerce database
      */
-    public function productRefresh($products=[])
+    public function productRefresh($items=[], $verbose=true)
     {
-        msgDebug("\nEntering productRefresh with products = ".print_r($products, true));
-        foreach ($products as $product) {
-            $productID= \wc_get_product_id_by_sku($product['SKU']);
+        global $wpdb;
+        msgDebug("\nEntering productRefresh with products = ".print_r($items, true));
+        foreach ($items as $item) {
+            $productID = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_sku' AND meta_value='%s' LIMIT 1", $item['SKU'] ) );
+//          $productID = \wc_get_product_id_by_sku($item['SKU']); // doesn't always return a hit, flagging not found error below???
             if (empty($productID)) {
-                msgAdd("SKU {$product['SKU']} needs to be created in your cart before you can refresh the price and stock. It will be skipped.");
+                if ($verbose) {msgAdd("SKU {$item['SKU']} needs to be created in your cart before you can refresh the price and stock. It will be skipped."); }
                 continue;
             }
-            $price    = clean($product['Price'],       'currency');
-            $priceReg = clean($product['RegularPrice'],'currency');
-            $priceSale= clean($product['SalePrice'],   'currency');
-            $data     = ['price'=>$price, 'priceReg'=>$priceReg, 'priceSale'=>$priceSale, 'qty'=>$product['QtyStock']];
-            $this->productQuickUpdate($productID, $data);
-            $this->productPriceLevels($product, $productID); // update the price levels
+            $tempPrice = clean($item['Price'], 'currency');
+            $price     = !empty($tempPrice) ? $tempPrice : '';
+            $priceReg  = !empty($item['RegularPrice'])? clean($item['RegularPrice'],'currency') : $price;
+            $priceSale = !empty($item['SalePrice'])   ? clean($item['SalePrice'],   'currency') : '';
+            $stock     = !empty($item['QtyStock'])    ? $item['QtyStock']                       : '';
+            $tempWeight= clean($item['Weight'],      'float');
+            $itemWeight= !empty($tempWeight)? $tempWeight : 0;
+            $data      = ['price'=>$price, 'priceReg'=>$priceReg, 'priceSale'=>$priceSale, 'stock'=>$stock, 'weight'=>$itemWeight];
+            $product   = new \WC_Product( $productID );
+//          $product   = \wc_get_product( $productID ); // old way
+            if (empty($product)) { return msgAdd("Error - the variation is missing!"); }
+            if (!$this->quickNoDiff($product, $data)) { 
+                $this->productQuickUpdate($product, $data);
+                $this->productPriceLevels($product, $productID); // update the price levels
+            } else { msgDebug("\nSkipping product Update, no changes."); }
+            $priceByItem = !empty($item['PriceByItem']) ? $item['PriceByItem'] : '';
+            if (!$this->byItemNoDiff($product, $priceByItem)) {
+                $this->priceVariations($product, $priceByItem);
+            } else { msgDebug("\nSkipping variation update, no changes"); }
+            // process byItem variations
+            if (!empty($data['PriceByItem'])) { }
         }
     }
 
-    private function productQuickUpdate($productID, $data=[])
+    private function quickNoDiff($product, $data)
     {
-        $product = \wc_get_product( $productID );
+        unset($data['priceReg']);
+        msgDebug("\nEntering quickNoDiff with data = ".print_r($data, true));
+        $current = [
+            'price'    => $product->get_price(),
+            'priceSale'=> $product->get_sale_price(),
+            'stock'    => $product->get_stock_quantity(),
+            'weight'   => $product->get_weight()];
+        msgDebug("\nPulled current data from db: ".print_r($current, true));
+        $noDiffData = empty(array_diff_assoc($data, $current)) ? true : false;
+        msgDebug("\narray diff = ".print_r(array_diff_assoc($data, $current), true));
+        return $noDiffData;
+    }
+    
+    private function byItemNoDiff($product, $byItem)
+    {
+        msgDebug("\nEntering byItemNoDiff with byItem = ".print_r($byItem, true));
+        if (empty($byItem)) { return true; }
+        $tempdbItem= \get_post_meta( $product->get_id(), 'bizSellQtys');
+        $dbByItem  = json_encode(sizeof($tempdbItem)<2 ? array_shift($tempdbItem) : $tempdbItem);
+        $tempByItem= $this->reformatSellUnits($byItem);
+        $dataByItem= json_encode($tempByItem);
+        msgDebug("\ndbByItem   = ".print_r($dbByItem, true));
+        msgDebug("\ndataByItem = ".print_r($dataByItem, true));
+        $noDiffItem = $dbByItem == $dataByItem ? true : false;
+        if (!$noDiffItem) { 
+            msgDebug("\nUpdating post meta with ".print_r($dataByItem, true));
+            \update_post_meta( $product->get_id(), 'bizSellQtys', $tempByItem);
+        }
+        return $noDiffItem;
+    }
+    
+    private function productQuickUpdate($product, $data=[])
+    {
+        msgDebug("\nEntering productQuickUpdate with data = ".print_r($data, true));
         $product->set_price         ($data['price']);
-        $product->set_regular_price (!empty($data['priceReg'])? $data['priceReg'] : '');
-        $product->set_sale_price    (!empty($data['priceSale'])  ? $data['priceSale']: '');
-        $product->set_stock_quantity($data['qty'] > 0 ? $data['qty'] : 0);
-        $product->set_stock_status  ($data['qty'] > 0 ? 'instock' : 'outofstock');
+        $product->set_regular_price (!empty($data['priceReg']) ? $data['priceReg'] : $data['price']);
+        $product->set_sale_price    (!empty($data['priceSale'])? $data['priceSale']: '');
+        if (!empty($data['stock']) ){
+            $product->set_stock_quantity( $data['stock'] );
+            $product->set_manage_stock(true);
+            $product->set_stock_status('');
+        } else {
+            $product->set_manage_stock(false);
+        }
+        if (!empty($data['weight'])) { $product->set_weight($data['weight']); }
+        msgDebug("\nSaving product.");
         $product->save(); // Save to database and sync
+        msgDebug("\nread back price = ".$product->get_price());
     }
 
     /**

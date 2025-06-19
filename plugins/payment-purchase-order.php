@@ -3,7 +3,7 @@
  * WooCommerce - Bizuno API - Payment Method - Purchase Order
  * This class contains the  methods to handle cart payment methods
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
  * @version    3.x Last Update: 2023-10-21
  * @filesource /bizuno-api/lib/payment_purchase_order.php

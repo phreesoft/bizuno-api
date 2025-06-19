@@ -1,24 +1,51 @@
 <?php
 /**
- * WooCommerce - Bizuno API
- * This class contains the  methods to handle a customers account
+ * ISP Hosted WordPress Plugin - account class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2023-05-16
- * @filesource /wp-content/plugins/bizuno-api/lib/account.php
+ * @version    3.x Last Update: 2024-09-13
+ * @filesource ISP WordPress /phreesoft-bizuno/lib/account.php
  */
 
 namespace bizuno;
 
-class api_account extends api_common
+class account extends common
 {
-    public $userID = 0;
-
     function __construct($options=[])
     {
         parent::__construct($options);
     }
+
+    /*********************************************** WP users screen ************************************************/
+    /*
+     * Provides additional fields on the users edit page to link the e-store to the Bizuno Books
+     */
+    public function bizunoUserEdit( $user )
+    {
+        if (!is_admin()) { return; }
+        $html  = '<h3 class="heading">Bizuno Customer Settings</h3>';
+        $html .= '<table class="form-table">';
+        $html .= '  <tr><th><label for="bizuno_contact_id">Link to Bizuno Customer ID:</label></th>';
+        $html .= '      <td><input type="text" name="bizuno_contact_id" id="bizuno_contact_id" value="'.\get_user_meta( $user->ID, 'bizuno_contact_id', true).'" /></td></tr>';
+        $html .= '</table>';
+        echo $html;
+    }
+
+    /**
+     * Saves the Contact ID to link to Bizuno
+     * @param type $user_id
+     * @return type
+     */
+    public function bizunoUserSave( $user_id )
+    {
+        if (!is_admin()) { return; }
+        $user = \get_userdata( $user_id );
+        if (empty($user)) { return; }
+        \update_user_meta( $user_id, 'bizuno_contact_id', !empty($_POST['bizuno_contact_id']) ? $_POST['bizuno_contact_id'] : '' );
+    }
+
+    /***********************************************   ************************************************/
     /**
      *
      * @param type $items
@@ -75,9 +102,7 @@ class api_account extends api_common
         $qParams= $request->get_query_params(); // retrieve the get parameters
         $data   = ['email' => !empty($qParams['email']) ? $qParams['email'] : ''];
         msgDebug("\nWorking with contactID = ".print_r($data['email'], true));
-//        $id     = dbGetValue(BIZUNO_DB_PREFIX,'contacts', 'id', "short_name='".addslashes($data['contactID'])."'");
-//        $output['addresses'] = !empty($id) ? dbGetMulti(BIZUNO_DB_PREFIX.'address_book', "ref_id=$id") : [];
-$output['addresses'][] = ['primary_name'=>'Lisa Premo', 'email'=>'lisa@pps.com'];
+//      $id     = dbGetValue(BIZUNO_DB_PREFIX,'contacts', 'id', "short_name='".addslashes($data['contactID'])."'");
         $resp   = new \WP_REST_Response($output);
         $resp->set_status(200);
         msgDebugWrite();
@@ -124,10 +149,9 @@ $output['addresses'][] = ['primary_name'=>'Lisa Premo', 'email'=>'lisa@pps.com']
         $data   = ['email' => !empty($qParams['email']) ? $qParams['email'] : ''];
         msgDebug("\nWorking with contactID = ".print_r($data['email'], true));
         $id     = dbGetValue(BIZUNO_DB_PREFIX,'contacts', 'id', "short_name='".addslashes($data['email'])."'");
-        $output['addresses'] = !empty($id) ? dbGetMulti(BIZUNO_DB_PREFIX.'address_book', "ref_id=$id") : [];
+        $output['addresses'] = !empty($id) ? dbGetMulti(BIZUNO_DB_PREFIX.'contacts', "id=$id") : [];
         $resp   = new \WP_REST_Response($output);
         $resp->set_status(200);
-        msgDebugWrite();
         return $resp;
     }
 

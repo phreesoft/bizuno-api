@@ -1,17 +1,16 @@
 <?php
 /**
- * WooCommerce - Bizuno API
- * This class contains the  methods to handle product uploads
+ * ISP Hosted WordPress Plugin - payment class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2023-06-11
- * @filesource /wp-content/plugins/bizuno-api/lib/payment.php
+ * @version    3.x Last Update: 2024-08-25
+ * @filesource ISP WordPress /phreesoft-bizuno/lib/payment.php
  */
 
 namespace bizuno;
 
-class api_payment extends api_common
+class payment extends common
 {
     public $userID = 0;
 

@@ -210,29 +210,43 @@ class PayFabric_Gateway_Request
         $order = wc_get_order($order_id);
         $order_status = $order->get_status();
         if ($status == "approved") {
+            
+            // commented out by Phreesoft to change order status after payment finishes pending
+//            if ($transactionState == "pending capture") {
+//                if ($order_status != 'on-hold') {
+//                    //Auth transaction
+//                    update_post_meta($order->get_id(), '_payment_status', 'on-hold');
+//                    $order->update_status('on-hold', sprintf(__('Card payment authorized.', 'payfabric-gateway-woocommerce')));
+//
+//                    // Reduce stock levels
+//                    wc_reduce_stock_levels($order_id);
+//                }
+                
+            // set order status to 'processing' instead of 'on hold'
             if ($transactionState == "pending capture") {
-                if ($order_status != 'on-hold') {
-                    //Auth transaction
-                    update_post_meta($order->get_id(), '_payment_status', 'on-hold');
-                    $order->update_status('on-hold', sprintf(__('Card payment authorized.', 'payfabric-gateway-woocommerce')));
-
+                if ($order_status != 'processing') {
+                    // Auth transaction
+                    update_post_meta($order->get_id(), '_payment_status', 'processing');
+                    $order->update_status('processing', sprintf(__('Card payment authorized via PayFabric.', 'payfabric-gateway-woocommerce')));
+                    
                     // Reduce stock levels
                     wc_reduce_stock_levels($order_id);
                 }
+            }
             } elseif (in_array($transactionState, array('pending settlement', 'settled', 'captured'))) {
                 if ($order_status != 'completed' && $order_status != 'processing') {
                     //Purchase transaction
                     update_post_meta($order->get_id(), '_payment_status', 'completed');
                     $order->payment_complete();
-                    if ($this->gateway->api_success_status == '1') {
-                        $order->update_status('completed', sprintf(__('Card payment completed.', 'payfabric-gateway-woocommerce')));
-                    }
+                    // commented out by Phreesoft to prevent orders from being tagged 'complete'
+//                    if ($this->gateway->api_success_status == '1') {
+//                        $order->update_status('completed', sprintf(__('Card payment completed.', 'payfabric-gateway-woocommerce')));
+//                    }
                     //                 do_action( 'woocommerce_payment_complete', $order_id);
 
                     // Reduce stock levels
                     wc_reduce_stock_levels($order_id);
                 }
-            }
         } else {
             if ($order_status != 'failed') {
                 $order->update_status('failed', sprintf(__('Card payment failed.', 'payfabric-gateway-woocommerce')));

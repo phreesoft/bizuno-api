@@ -1,36 +1,51 @@
 <?php
 /**
- * WooCommerce - Bizuno API
- * This class contains the  methods to handle administration
+ * ISP Hosted WordPress Plugin - admin class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2023-10-06
- * @filesource /wp-content/plugins/bizuno-api/lib/admin.php
+ * @version    3.x Last Update: 2025-03-14
+ * @filesource ISP WordPress /bizuno-erp/lib/admin.php
  */
 
 namespace bizuno;
 
-class api_admin
+class admin extends common
 {
-    public $api_local = true;
-    public $userID = 0;
+    public $api_local = false; // ISP Hosted so books are at another url
 
     function __construct() {
         $this->defaults = ['url' => '',
-            'oauth_client_id'=> '',  'oauth_client_secret'=> '',
+//          'oauth_client_id'=> '',  'oauth_client_secret'=> '', // oAuth not implemented yet.
             'rest_user_name' => '',  'rest_user_pass'     => '',
             'prefix_order'   => 'WC','prefix_customer'    => 'WC',
             'journal_id'     => 0,   'autodownload'       => 0];
         $this->is_post = isset($_POST['bizuno_api_form_updated']) && $_POST['bizuno_api_form_updated'] == 'Y' ? true : false;
         $this->options = $this->processOptions($this->defaults);
-        if (!empty( get_option ( 'bizuno_api_url', '' ) ) ) { $this->api_local = false; }
-    }
-    private function bizunoCtlr() {
-        require_once ( plugin_dir_path( __FILE__ ) . "../bizuno-accounting/controllers/portal/controller.php" );
-        return new \bizuno\portalCtl(); // sets up the Bizuno Environment
     }
 
+    /************************************************* Filters ***************************************************/
+    /**
+     * Reorders the My Account tabs and adds new tabs
+     * @param array $items - The list of tabs before the filter
+     * @return array - modified list of tabs
+     */
+    public function ps_my_business_link_my_account( $items ) {
+
+        unset($items['orders'], $items['downloads'], $items['edit-address'], $items['payment-methods'], $items['downloads'], $items['edit-account'], $items['customer-logout']);
+        $items['dashboard']       = __( 'Dashboard', 'woocommerce' );
+        $items['edit-account']    = __( 'Account details', 'woocommerce' );
+        $items['my-business']     = __( 'My Business', 'phreesoft' ); // New tab
+        $items['biz-users']       = __( 'Business Users', 'phreesoft' ); // New tab
+        $items['orders']          = __( 'Orders', 'woocommerce' );
+        $items['edit-address']    = _n( 'Addresses', 'Address', (int) wc_shipping_enabled(), 'woocommerce' );
+        $items['payment-methods'] = __( 'Payment methods', 'woocommerce' );
+        $items['downloads']       = __( 'Downloads', 'woocommerce' );
+        $items['customer-logout'] = __( 'Logout', 'woocommerce' );
+        return $items;
+    }
+
+    /*********************************************** Settings ************************************************/
     public function add_shipped_to_order_statuses( $order_statuses ) {
         $new_order_statuses = [];
         foreach ( $order_statuses as $key => $status ) {
@@ -40,22 +55,31 @@ class api_admin
         return $new_order_statuses;
     }
     public function bizuno_api_order_column_header( $columns ) { // Add column to order summary page
-        $new_columns = [];
-        foreach ( $columns as $column_name => $column_info ) {
-            if ( 'order_date' === $column_name ) { $new_columns['bizuno_download'] = __( 'Exported', 'bizuno_api' ); }
-            $new_columns[$column_name] = $column_info;
+        $reordered_columns = [];
+        foreach ( $columns as $key => $column ) {
+            $reordered_columns[$key] = $column;
+            if ( $key == 'order_status' ) { $reordered_columns['bizuno_download'] = __( 'Exported', 'bizuno_erp'); }
         }
-        return $new_columns;
+        return $reordered_columns;
     }
-    public function bizuno_api_order_column_content($column) {
-        global $post;
-        if ( 'bizuno_download' === $column ) {
-            $exported = get_post_meta( $post->ID, 'bizuno_order_exported', true );
+    public function bizuno_api_order_column_content($column) // $order
+    {
+        global $the_order; // the global order object
+        if ($column == 'bizuno_download') {
+            $exported = $the_order->get_meta( 'bizuno_order_exported', true );
+            if (empty($exported)) {
+                $tip = '';
+                echo '<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">'.__( 'No', 'bizuno_api' ).'</button>';
+            } else { echo 'X&nbsp;'; }
+        }
+/*        if ( 'bizuno_download' === $column ) {
+            echo 'X';
+            $exported = $order->get_meta( 'bizuno_order_exported', true ); // $order->get_meta( 'bizuno_order_exported', true );
             if (empty($exported)) {
                 $tip = '';
                 echo '<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">'.__( 'No', 'bizuno_api' ).'</button>';
             } else { echo '&nbsp;'; }
-        }
+        } */
     }
     public function bizuno_api_order_preview_filter( $data, $order ) { // Add download button to Preview pop up
         $data['bizuno_order_exported'] = $order->get_meta('bizuno_order_exported', true, 'edit') ? 'none' : 'block';
@@ -66,31 +90,35 @@ class api_admin
         echo '<span style="display:{{ data.bizuno_order_exported }}"><a class="button button-primary button-large" onClick="window.location = \''.$url.'&biz_order_id={{ data.data.id }}\';">'.__( 'Export order to Bizuno', 'bizuno-api' ).'</a></span>'."\n";
     }
     public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
-        global $post;
-        if (get_post_meta( $post->ID, 'bizuno_order_exported', true ) ) { return $actions; }
+        if (get_post_meta( get_the_ID(), 'bizuno_order_exported', true ) ) { return $actions; }
         $actions['bizuno_export_action'] = __('Export order to Bizuno', 'bizuno-api');
         return $actions;
     }
 
     public function bizuno_api_add_setting_submenu( ) {
-        add_submenu_page( 'options-general.php', 'Bizuno RESTful API', 'Bizuno API', 'manage_options', 'bizuno_api', [$this, 'bizuno_api_setting_submenu']);
+        add_submenu_page( 'options-general.php', 'Bizuno', 'Bizuno', 'manage_options', 'bizuno_api', [$this, 'bizuno_api_setting_submenu']);
     }
+
     public function bizuno_api_setting_submenu() {
         if (!current_user_can('manage_options')) { wp_die( __('You do not have sufficient permissions to access this page.') ); }
         if (!empty($this->is_post)) {
             echo '<div class="updated"><p><strong>'.__('Settings Saved.', 'bizuno-api' ).'</strong></p></div>';
         }
-        echo '
-<div class="wrap"><h2>'.__( 'Bizuno API Plugin Settings', 'bizuno-api' ).'</h2>
-  <p>The Bizuno API provide automated RESTful API transactions between the Bizuno Accounting plugin and WooCommerce.</p>
+        $html = '';
+        $html.= '
+<div class="wrap"><h2>'.__( 'Bizuno Settings', 'phreesoft' ).'</h2>
+  <p>The Bizuno interface passes order, product and other information between your business external website and internal Bizuno site.</p>
   <form name="formBizAPI" method="post" action="">
     <input type="hidden" name="bizuno_api_form_updated" value="Y">
     <table class="form-table" role="presentation"><tbody>
       <tr><td colspan="2"><h3>General Settings</h3></td></tr>
       <tr><th scope="row">Server URL:</th><td>
         <input type="text" name="bizuno_api_url" value="'.$this->options['url'].'" size="30"><br />
-          Leave blank if Bizuno and your WooCommerce store are on the same domain. Otherwise, enter the URL to the root of the website you are connecting to, e.g. https://www.yoursite.com. Note for added security to remote domains, this API has the option of using OAuth2 which requires a Client ID and Client Secret from the destination site. The WordPress plugin <b>WP OAuth Server - CE</b> is required if using oAuth!
-      </td></tr>
+          Enter the full URL to the root of the website you are connecting to, e.g. https://biz.yoursite.com.
+      </td></tr>';
+        // When using OAuth2 add the following to the instructions and uncomment the added inputs:
+        // Note for added security to remote domains, this API has the option of using OAuth2 which requires a Client ID and Client Secret from the destination site. The WordPress plugin <b>WP OAuth Server - CE</b> is required if using oAuth!
+/*        $html.= '
       <tr><th scope="row">OAuth2 Client ID:</th><td>
         <input type="text" name="bizuno_api_oauth_client_id" value="'.$this->options['oauth_client_id'].'" size="70"><br />
           Enter the Client ID as provided by the OAUTH2 plugin on the destination WordPress install. Not used if Bizuno and your WooCommerce store are on the same domain.
@@ -98,7 +126,8 @@ class api_admin
       <tr><th scope="row">OAuth2 Client Secret:</th><td>
         <input type="text" name="bizuno_api_oauth_client_secret" value="'.$this->options['oauth_client_secret'].'" size="70"><br />
           Enter the Client Secret as provided by the OAUTH2 plugin on the destination WordPress install. Not used if Bizuno and your WooCommerce store are on the same domain.
-      </td></tr>
+      </td></tr>'; */
+        $html.= '
       <tr><th scope="row">AJAX/REST User Name:</th><td>
         <input type="text" name="bizuno_api_rest_user_name" value="'.$this->options['rest_user_name'].'" size="40"><br />
           Enter the WordPress user name for the API to connect to. The user must have the proper privileges to perform the requested action.
@@ -131,7 +160,9 @@ class api_admin
     <input type="submit" name="submit" id="submit" class="button button-primary" value="Save Changes">
   </form>
 </div>'; //  interface to Bizuno Accounting
+        echo $html;
     }
+
     private function processOptions($values)
     {
         $output = [];
@@ -143,7 +174,7 @@ class api_admin
                 }
                 update_option ( 'bizuno_api_'.$key, $output[$key] );
             } else {
-                $output[$key] = get_option ( 'bizuno_api_'.$key, $default );
+                $output[$key] = \get_option ( 'bizuno_api_'.$key, $default );
             }
         }
         return $output;

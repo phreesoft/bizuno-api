@@ -61,8 +61,8 @@ class PayFabric extends WC_Payment_Gateway
         $this->description = $this->get_option('description');
         $this->testmode = 'yes' === $this->get_option('testmode', 'no');
         $this->icon = apply_filters('payfabric-gateway-woocommerce', plugin_dir_url(__FILE__) . 'assets/images/logo.png');
-        $this->api_merchant_id = $this->get_option('api_merchant_id');
-        $this->api_password = $this->get_option('api_password');
+        $this->api_merchant_id = defined('PF_OAUTH2_ID') && !empty(PF_OAUTH2_ID) ? PF_OAUTH2_ID : $this->get_option('api_merchant_id');
+        $this->api_password    = defined('PF_OAUTH2_PW') && !empty(PF_OAUTH2_PW) ? PF_OAUTH2_PW : $this->get_option('api_password');
         $this->api_success_status = $this->get_option('api_success_status');
         $this->api_payment_action = $this->get_option('api_payment_action');
         $this->api_payment_modes = $this->get_option('api_payment_modes');
@@ -423,8 +423,8 @@ class PayFabric extends WC_Payment_Gateway
             $api_merchant_password = $this->get_field_key('api_password');
             $api_testmode = $this->get_field_key('testmode');
             $api_payment_action = $this->get_field_key('api_payment_action');
-            $merchant_id = isset($post_data[$api_merchant_id]) ? $post_data[$api_merchant_id] : null;
-            $merchant_password = isset($post_data[$api_merchant_password]) ? $post_data[$api_merchant_password] : null;
+            $merchant_id       = defined('PF_OAUTH2_ID') && !empty(PF_OAUTH2_ID) ? PF_OAUTH2_ID : (isset($post_data[$api_merchant_id]) ? $post_data[$api_merchant_id] : null);
+            $merchant_password = defined('PF_OAUTH2_PW') && !empty(PF_OAUTH2_PW) ? PF_OAUTH2_PW : (isset($post_data[$api_merchant_password]) ? $post_data[$api_merchant_password] : null);
             $testmode = isset($post_data[$api_testmode]) ? $post_data[$api_testmode] : null;
             $payment_action = isset($post_data[$api_payment_action]) ? $post_data[$api_payment_action] : null;
             if (empty($merchant_id) || empty($merchant_password)) {

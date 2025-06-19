@@ -1,17 +1,16 @@
 <?php
 /**
- * WooCommerce - Bizuno API - Shipping methods
- * This class contains the  methods to handle shipping rate quotes
+ * ISP Hosted WordPress Plugin - shipping class
  *
- * @copyright  2008-2024, PhreeSoft, Inc.
+ * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2024-02009
- * @filesource /wp-content/plugins/bizuno-api/lib/shipping.php
+ * @version    3.x Last Update: 2025-03-13
+ * @filesource ISP WordPress /bizuno-erp/lib/shipping.php
  */
 
 namespace bizuno;
 
-class api_shipping extends api_common
+class shipping extends common
 {
 
     function __construct($options=[])
@@ -23,7 +22,7 @@ class api_shipping extends api_common
      * Fetches the shipping rates using the Bizuno carriers and settings.
      * @param array $request
      */
-    public function rates_list($request)
+/*    public function rates_list($request)
     {
         $package= $this->rest_open($request); // do not use request since this is a post
         $this->getRatesPrep();
@@ -31,25 +30,22 @@ class api_shipping extends api_common
         compose('bizuno', 'export', 'shippingRates', $layout);
         $output = ['rates'=>$layout['rates']];
         return $this->rest_close($output);
-    }
+    } */
     /********************** Local get rate and return either local or REST *******************/
     public function getRates($package=[])
     {
+//      global $io;
         $package['destination']['totalWeight'] = WC()->cart->get_cart_contents_weight();
         $layout = ['pkg'=>$package, 'rates'=>[]];
         if (empty($package['destination']['postcode'])) { return $layout['rates']; }
         $this->client_open();
-        if ($this->api_local) { // we're here so just update the db
-            compose('bizuno', 'export', 'shippingRates', $layout);
-        } else { // Use REST to connect and transmit data
-            msgDebug("\nCalling RESTful API with package = ".print_r($package, true));
-            $resp = $this->restGo('get', $this->options['url'], 'shipping/rates', $package['destination']);
-            msgDebug("\nBizuno-API getRates received back from REST: ".print_r($resp, true));
-            if (isset($resp['message'])) { msgMerge($resp['message']); }
-            $layout['rates'] = !empty($resp['rates']) ? $resp['rates'] : [];
-        }
+        msgDebug("\nCalling API with package = ".print_r($package['destination'], true));
+        $resp = json_decode($this->cURL('get', $package['destination'], 'shipping/getRates'), true);
+        msgDebug("\nBizuno-API getRates received back from REST: ".print_r($resp, true));
+        if (isset($resp['message'])) { msgMerge($resp['message']); }
+        $layout['rates'] = !empty($resp['rates']) ? $resp['rates'] : [];
+        msgDebug("\nSending back to WooCommerce: ".print_r($layout, true));
         $this->client_close();
-        msgDebug("\nReturned from API getRates with layout = ".print_r($layout, true));
         return $layout['rates'];
     }
     private function getRatesPrep()
