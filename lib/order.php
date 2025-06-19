@@ -4,8 +4,8 @@
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-04-14
- * @filesource ISP WordPress /bizuno-erp/lib/order.php
+ * @version    3.x Last Update: 2025-06-19
+ * @filesource ISP WordPress /bizuno-api/lib/order.php
  */
 
 namespace bizuno;
@@ -22,7 +22,7 @@ class order extends common
      * Adds the order received from the cart into Bizuno
      * @param type $request
      */
-    public function order_add($request)
+/*    public function order_add($request)
     {
         $data   = $this->rest_open($request); // do not need request since this is a post
         $postID = $this->apiJournalEntry($data['order']);
@@ -34,7 +34,7 @@ class order extends common
         $result = $this->shipConfirm($data['data']);
         $output = ['result'=>!empty($result)?'Success':'Fail'];
         return $this->rest_close($output);
-    }
+    } */
 
     /********************* Hooks for WooCommerce  *************************/
     /**
@@ -78,7 +78,7 @@ class order extends common
         $this->client_open();
         if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".print_r($order, true));  } // return;
         msgDebug("\nMapped order = ".print_r($order, true));
-        $resp   = json_decode($this->cURL('post', $order, 'order/add'), true);
+        $resp   = json_decode($this->cURL('post', $order, 'orderAdd'), true);
         $mainID = !empty($resp['ID']) ? $resp['ID'] : 0;
         msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".print_r($resp, true));
         if ( !empty($mainID) ) {

@@ -4,7 +4,7 @@
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-04-11
+ * @version    3.x Last Update: 2025-06-19
  * @filesource ISP WordPress /bizuno-erp/lib/common.php
  */
 
@@ -56,7 +56,7 @@ class common
     function cURL($type='get', $data=[], $endPoint='')
     {
         msgDebug("\nEntering cURL with endPoint = $endPoint and options = ".print_r($this->options, true));
-        $url    = $this->options['url'].'?bizRt=api/'.$endPoint;
+        $url    = $this->options['url'].'?bizRt=portal/api/'.$endPoint;
         $opts   = ['headers'=>['BIZUSER'=>$this->options['rest_user_name'], 'BIZPASS'=>$this->options['rest_user_pass']]];
         $useragent = 'Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0';
         $rData  = is_array($data) ? http_build_query($data) : $data;

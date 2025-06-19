@@ -59,11 +59,6 @@ function setUserCookie($user)
     bizSetCookie('bizunoSession', $cookie, time()+(60*60*10)); // 10 hours
 }
 
-/**
- * Sets the paths for the modules, core and extensions needed to build the registry
- * *** Sequence is important, do not change! ***
- * @return module keyed array with path the modules requested
- */
 function portalModuleList() {
     $modList = [];
     portalModuleListScan($modList, 'BIZBOOKS_ROOT/controllers/'); // Core
@@ -90,9 +85,6 @@ function portalGetBizIDVal($bizID, $idx=false) {
     return defined('BIZUNO_TITLE') ? BIZUNO_TITLE : 'My Business';
 }
 
-/**
- * Returns the pull down list of skins from the bizuno-skins plugin if installed and enabled.
- */
 function portalSkins() {
     if (!defined('BIZTHEMES_EASYUI')) { return [['id'=>'default', 'text'=>ucwords('default')]]; }
     $output = [];
@@ -100,9 +92,6 @@ function portalSkins() {
     return $output;
 }
 
-/**
- * Returns the pull down list of icons from the bizuno-icons plugin if installed and enabled.
- */
 function portalIcons(&$icons=[]) {
     if (!defined('BIZTHEMES_ICONS')) { return [['id'=>'default', 'text'=>lang('default')]]; }
     $output = [];
@@ -110,16 +99,13 @@ function portalIcons(&$icons=[]) {
     return $output;
 }
 
+/*
 final class portal
 {
     public $restHeaders = [];
 
     function __construct() { }
 
-    /**
-     * Sign out of this Bizuno session
-     * @param array $layout
-     */
     public function logout(&$layout=[])
     {
         $email = getUserCache('profile', 'email');
@@ -151,10 +137,6 @@ final class portal
         return $response;
     }
 
-    /**
-     * Fetch oAuth2 token from a RESTful API server
-     * @return token if successful, null if error
-     */
     public function restOauthToken($server='', $id='', $secret='')
     {
         msgDebug("\nEntering restTokenValidate with path = $server");
@@ -180,13 +162,6 @@ final class portal
         return $token[$server]['token'];
     }
 
-    /**
-     * This method retrieves data from a remote server using cURL
-     * @param string $url - URL to request data
-     * @param string $data - data string, will be attached for get and through setopt as post or an array
-     * @param string $type - [default 'get'] Choices are 'get' or 'post'
-     * @return result if successful, false (plus messageStack error) if fails
-     */
     function cURL($url, $data=[], $type='get', $opts=[]) {
         $useragent = 'Mozilla/5.0 (Windows NT 5.1; rv:31.0) Gecko/20100101 Firefox/31.0';
         $size = is_array($data) ? 'array('.sizeof($data).')' : strlen($data);
@@ -234,12 +209,6 @@ final class portal
         return $response;
     }
     
-    /**
-     * Dumps the DB (or table) to a gzipped file into a specified folder
-     * @param string $filename - Name of the file to create
-     * @param string $dirWrite - Folder in the user root to write to, defaults to backups/
-     * @param type $dbTable - (Default ALL TABLES), set to table name for a single table
-     */
     function dbDump($filename='bizuno_backup', $dirWrite='', $dbTable='')
     {
         global $io;
@@ -266,10 +235,6 @@ final class portal
         return true;
     }
 
-    /**
-    * Restores a sql file to the users db, DANGER as this wipes the current db
-    * @param string $filename - source file to use to restore
-    */
    function dbRestore($filename)
    {
        msgDebug("\npath = ".BIZBOOKS_ROOT."...myFolder.../$filename");
@@ -294,4 +259,4 @@ final class portal
        msgDebug("\n returned status value: " .print_r($retValue, true));
        return (!empty($retValue)) ? false : true;
    }
-}
+} */
