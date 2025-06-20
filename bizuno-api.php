@@ -16,6 +16,18 @@ if (!defined('ABSPATH')) { die('No script kiddies please!'); }
 
 if (!defined('SCRIPT_START_TIME')) { define('SCRIPT_START_TIME', microtime(true)); }
 
+// Test for the Bizuno library to be installed which instantiates many of these files. 
+// Do not allow activation if the library is missing, provide lilnk to PhreeSoft where the library can be uploaded to the WP install
+
+// BIZUNO_SCRIPTS will be different for public installs
+// file system paths should also be set at the portal to allow for flexibility of where to put the Bizuno library.
+ 
+// This plugin will be different for PhreeSoft cloud users than public self-hosted or WP installs, probably only the config file.
+// PhreeSoft cloud version will need the plugin checker for upgrading, the public version will use the WP svn repo
+
+// 
+
+
 /************** THIS NEEDS TO BE DYNAMIC TO SEE IF BIZUNO LIBRARY PLUGIN HAS BEEN LOADED *************/
 define('BIZUNO_REPO', '/usr/share/bizuno/vendor/phreesoft/bizuno/');
 define('BIZUNO_BIZID', 1);
@@ -25,7 +37,7 @@ define ( 'BIZUNO_DATA',  $_SERVER['PHP_DOCUMENT_ROOT'].'/private/' );
 define('BIZUNO_KEY', '0123456S890yQ345'); // 16 alpha-num characters, randomly generated
 // Database credentials
 define('PORTAL_DB_PREFIX', $wpdb->prefix); // WordPress table prefix
-define('BIZUNO_DB_PREFIX', $wpdb->prefix);
+define('BIZUNO_DB_PREFIX', $wpdb->prefix); // Will be different from the portal if the Bizuno DB is stored in a database other than the WordPress db
 define('BIZPORTAL', ['type'=>'mysql','host'=>DB_HOST,'name'=>DB_NAME,'user'=>DB_USER,'pass'=>DB_PASSWORD,'prefix'=>PORTAL_DB_PREFIX]);
 
 define('BIZUNO_PORTAL',  $_SERVER['SERVER_NAME']);
