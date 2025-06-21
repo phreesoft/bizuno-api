@@ -16,6 +16,8 @@ if (!defined('ABSPATH')) { die('No script kiddies please!'); }
 
 if (!defined('SCRIPT_START_TIME')) { define('SCRIPT_START_TIME', microtime(true)); }
 
+require_once(dirname( __FILE__ ) . '/bizApiCFG.php');
+
 // Test for the Bizuno library to be installed which instantiates many of these files. 
 // Do not allow activation if the library is missing, provide lilnk to PhreeSoft where the library can be uploaded to the WP install
 
@@ -26,58 +28,6 @@ if (!defined('SCRIPT_START_TIME')) { define('SCRIPT_START_TIME', microtime(true)
 // PhreeSoft cloud version will need the plugin checker for upgrading, the public version will use the WP svn repo
 
 // 
-
-
-/************** THIS NEEDS TO BE DYNAMIC TO SEE IF BIZUNO LIBRARY PLUGIN HAS BEEN LOADED *************/
-define('BIZUNO_REPO', '/usr/share/bizuno/vendor/phreesoft/bizuno/');
-define('BIZUNO_BIZID', 1);
-//$upload_dir = wp_upload_dir();
-//define ( 'BIZUNO_DATA',  $upload_dir['basedir'].'/bizuno/' );
-define ( 'BIZUNO_DATA',  $_SERVER['PHP_DOCUMENT_ROOT'].'/private/' );
-define('BIZUNO_KEY', '0123456S890yQ345'); // 16 alpha-num characters, randomly generated
-// Database credentials
-define('PORTAL_DB_PREFIX', $wpdb->prefix); // WordPress table prefix
-define('BIZUNO_DB_PREFIX', $wpdb->prefix); // Will be different from the portal if the Bizuno DB is stored in a database other than the WordPress db
-define('BIZPORTAL', ['type'=>'mysql','host'=>DB_HOST,'name'=>DB_NAME,'user'=>DB_USER,'pass'=>DB_PASSWORD,'prefix'=>PORTAL_DB_PREFIX]);
-
-define('BIZUNO_PORTAL',  $_SERVER['SERVER_NAME']);
-
-// File system
-define('BIZUNO_PATH',   '/var/www/'.BIZUNO_PORTAL.'/web/');
-define('BIZUNO_ASSETS', '/usr/share/bizuno/assets/');
-// URL's
-define('BIZUNO_SRVR',    'https://'.BIZUNO_PORTAL.'/');
-define('BIZUNO_SERVERS', [
-    '75.112.81.5' =>'fl1', '75.112.81.6' =>'fl2', '75.112.81.7' =>'fl3', '75.112.81.8' =>'fl4',
-    '128.92.62.26'=>'tx1', '128.92.62.27'=>'tx2', '128.92.62.28'=>'tx3', '128.92.62.29'=>'tx4']);
-$subDom = explode('.', BIZUNO_SERVERS[$_SERVER['SERVER_ADDR']])[0];
-define('BIZUNO_SCRIPTS', "https://$subDom.bizuno.com/scripts/"); // pulled from a shared server
-
-require_once ( BIZUNO_REPO . 'bizunoCFG.php'); // Config for current release
-require_once ( BIZUNO_REPO . 'model/functions.php');
-require_once ( BIZUNO_ASSETS . 'vendor/autoload.php'); // Load the libraries
-
-//require_once ( dirname(__FILE__) . '/bizApiCFG.php' );
-// Library files for plugin operations
-require_once ( dirname(__FILE__) . '/lib/model.php');
-require_once ( dirname(__FILE__) . '/lib/common.php' );
-require_once ( dirname(__FILE__) . '/lib/admin.php' );
-//require_once ( dirname(__FILE__) . '/lib/account.php' );
-require_once ( dirname(__FILE__) . '/lib/order.php' );
-//require_once ( dirname(__FILE__) . '/lib/payment.php' );
-require_once ( dirname(__FILE__) . '/lib/product.php' );
-require_once ( dirname(__FILE__) . '/lib/shipping.php' );
-
-require_once ( BIZBOOKS_ROOT.'locale/cleaner.php');
-//require_once(BIZBOOKS_ROOT.'locale/currency.php');
-require_once ( BIZBOOKS_ROOT.'model/db.php');
-//require_once(BIZBOOKS_ROOT.'model/encrypter.php');
-require_once(BIZBOOKS_ROOT.'model/io.php');
-require_once(BIZBOOKS_ROOT.'model/manager.php');
-require_once(BIZBOOKS_ROOT.'model/msg.php');
-//require_once(BIZBOOKS_ROOT.'model/mail.php');
-//require_once(BIZBOOKS_ROOT.'view/main.php');
-//require_once(BIZBOOKS_ROOT.'view/easyUI/html5.php');
 
 
 if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
@@ -95,6 +45,7 @@ class bizuno_api
         register_activation_hook  ( __FILE__ ,  [ $this, 'activate' ] );
         register_deactivation_hook( __FILE__ ,  [ $this, 'deactivate' ] );
         // initialize Bizuno
+return;
         $msgStack      = new \bizuno\messageStack();
         $cleaner       = new \bizuno\cleaner();
 //      $html5         = new \bizuno\html5();
