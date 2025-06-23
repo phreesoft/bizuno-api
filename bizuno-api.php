@@ -45,7 +45,6 @@ class bizuno_api
         register_activation_hook  ( __FILE__ ,  [ $this, 'activate' ] );
         register_deactivation_hook( __FILE__ ,  [ $this, 'deactivate' ] );
         // initialize Bizuno
-return;
         $msgStack      = new \bizuno\messageStack();
         $cleaner       = new \bizuno\cleaner();
 //      $html5         = new \bizuno\html5();
@@ -119,9 +118,9 @@ return;
     public function ps_register_rest()
     {
         if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) { // From Bizuno -> WordPress (uplink)
-            register_rest_route( 'bizuno-api/v1', 'shipping/rates',  ['methods' => 'GET','args'=>[],
+            register_rest_route( 'bizuno-api/v1', 'shipping/rates',  ['methods' => 'GET', 'args'=>[],
                 'callback' => [ new \bizuno\shipping($this->options),'rates_list' ],     'permission_callback' => [$this, 'check_access'] ] );
-            register_rest_route( 'bizuno-api/v1', 'product/update',  ['methods' => 'POST', 'args'=>[],
+            register_rest_route( 'bizuno-api/v1', 'product/update',  ['methods' => 'POST','args'=>[],
                 'callback' => [ new \bizuno\product($this->options), 'product_update' ], 'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/refresh', ['methods' => 'PUT', 'args'=>[],
                 'callback' => [ new \bizuno\product($this->options), 'product_refresh' ],'permission_callback' => [$this, 'check_access'] ] );

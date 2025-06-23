@@ -1,11 +1,11 @@
 <?php
 /**
- * ISP Hosted WordPress Plugin - common class
+ * Bizuno API WordPress Plugin - common class
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-06-19
- * @filesource ISP WordPress /bizuno-erp/lib/common.php
+ * @version    3.x Last Update: 2025-06-22
+ * @filesource /bizuno-api/lib/common.php
  */
 
 namespace bizuno;
@@ -13,6 +13,9 @@ namespace bizuno;
 class common
 {
     public $api_local = false;
+    public $lang = [
+        'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
+    ];
 
     function __construct($options=[])
     {
@@ -33,17 +36,19 @@ class common
     public function rest_open(\WP_REST_Request $request)
     {
         $this->user = \wp_get_current_user();
-        $qParams = $request->get_params(); // didn't work: get_query_params(); // retrieve the get parameters
+        $qParams = $request->get_params(); // retrieve the get parameters
+        if (empty($qParams)) { 
+            $qParams = $request->get_query_params();
+            msgDebug("\nTried again with get_query_params: ".print_r($qParams, true));
+        }
         return $qParams;
     }
     public function rest_close($output=[], $status=200)
     {
         global $msgStack;
         $output['message'] = $msgStack->error;
-        $resp = new \WP_REST_Response($output);
-        $resp->set_status($status);
         msgDebugWrite();
-        return $resp;
+        return new \WP_REST_Response($output, $status);
     }
     
     /**

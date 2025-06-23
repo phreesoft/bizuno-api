@@ -1,11 +1,11 @@
 <?php
 /**
- * ISP Hosted WordPress Plugin - order class
+ * Bizuno API WordPress Plugin - order class
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-06-19
- * @filesource ISP WordPress /bizuno-api/lib/order.php
+ * @version    3.x Last Update: 2025-06-22
+ * @filesource /bizuno-api/lib/order.php
  */
 
 namespace bizuno;
@@ -17,24 +17,13 @@ class order extends common
     function __construct($options=[]) {
         parent::__construct($options);
     }
-    /**************** REST Endpoints to add order and set tracking info *************/
-    /**
-     * Adds the order received from the cart into Bizuno
-     * @param type $request
-     */
-/*    public function order_add($request)
-    {
-        $data   = $this->rest_open($request); // do not need request since this is a post
-        $postID = $this->apiJournalEntry($data['order']);
-        $output = ['result'=>!empty($postID)?'Success':'Fail', 'ID'=>$postID];
-        return $this->rest_close($output);
-    }
+    /**************** REST Endpoints to set tracking info *************/
     public function order_confirm($request) { // RESTful API to set the order tracking information
         $data   = $this->rest_open($request);
-        $result = $this->shipConfirm($data['data']);
+        $result = $this->shipConfirm(!empty($data['data']) ? $data['data'] : []);
         $output = ['result'=>!empty($result)?'Success':'Fail'];
         return $this->rest_close($output);
-    } */
+    }
 
     /********************* Hooks for WooCommerce  *************************/
     /**
@@ -48,7 +37,7 @@ class order extends common
         if ( !empty ( \get_option ( 'bizuno_api_autodownload', false ) ) ) {
             $this->orderExport($order_id); // call return to bit bucket as as all messsages are suppressed
             $wooOrder = new \WC_Order($order_id);
-            $wooOrder->update_status('completed');
+            $wooOrder->update_status('processing');
         }
     }
 
@@ -370,6 +359,7 @@ class order extends common
         $order_list= [];
         $prefix    = $this->options['prefix_order'];
         $status    = 'wc-shipped';
+        if (!isset($orders['head'])) { return msgAdd("No orders were sent to confirm!", 'info'); }
         foreach ($orders['head'] as $oID => $value) {
             // strip prefix from order ref (WC3044 => 3044) that is the record number
             if     ($prefix && (strpos($oID, $prefix) !== 0 || strpos($oID, $prefix) === false)) { continue; }
@@ -388,6 +378,7 @@ class order extends common
             }
         }
         msgAdd(sprintf($this->lang['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
+        msgDebug("\nLeaving shipConfirm with order count = $order_cnt");
         return true;
     }
 }

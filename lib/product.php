@@ -23,6 +23,7 @@ class product extends common
     /********************** Cron Events ************************/
     public function cron_image()
     {
+        require_once( ABSPATH . 'wp-admin/includes/image.php' );
         // This takes a LONG LONG LONG time, typically makes the script time out so it was separated from the main upload script and moved here to a cron
         msgDebug("\nEntering cron_image.");
         $imageQueue = \get_option('bizuno_image_queue');
