@@ -4,7 +4,7 @@
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-06-22
+ * @version    3.x Last Update: 2025-06-25
  * @filesource /bizuno-api/lib/order.php
  */
 
@@ -354,7 +354,7 @@ class order extends common
      */
     public function shipConfirm($orders=[])
     {
-        msgDebug("\nEntering shipConfirm with options = ".print_r($this->options, true));
+        msgDebug("\nEntering shipConfirm"); // with options = ".print_r($this->options, true));
         $order_cnt = 0;
         $order_list= [];
         $prefix    = $this->options['prefix_order'];
@@ -365,7 +365,7 @@ class order extends common
             if     ($prefix && (strpos($oID, $prefix) !== 0 || strpos($oID, $prefix) === false)) { continue; }
             elseif ($prefix &&  strpos($oID, $prefix) === 0) { $id = substr($oID, strlen($prefix)); }
             else   { $id  = intval($oID); }
-            $msg = $value. '<br />' . implode(', ', $orders['body'][$oID]);
+            $msg   = $value . '<br />'.$this->extractTracking($orders['body'][$oID]);
             $order = \wc_get_order ( $id );
             if (!empty($order)) {
                 $curStat = $order->get_status();
@@ -380,5 +380,15 @@ class order extends common
         msgAdd(sprintf($this->lang['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
         msgDebug("\nLeaving shipConfirm with order count = $order_cnt");
         return true;
+    }
+    
+    private function extractTracking($pkg=[])
+    {
+        if (empty($pkg['rows'])) { return ''; }
+        $tracking = [];
+        foreach ($pkg['rows'] as $box) {
+            if (!empty($box['tracking_id'])) { $tracking[] = $box['tracking_id']; }
+        }
+        return implode(', ', $tracking);
     }
 }
