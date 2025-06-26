@@ -4,7 +4,7 @@
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-06-25
+ * @version    3.x Last Update: 2025-06-26
  * @filesource /bizuno-api/lib/order.php
  */
 
@@ -123,18 +123,16 @@ class order extends common
                 'Telephone'       => $order->get_billing_phone(),
                 'Email'           => $order->get_billing_email()],
             'Shipping' => [
-                'PrimaryName'     => !empty($order->get_shipping_company()) ? $order->get_shipping_company() : $order->get_formatted_shipping_full_name(),
-                'Contact'         => !empty($order->get_shipping_company()) ? $order->get_formatted_shipping_full_name() : '',
-                'Address1'        => $order->get_shipping_address_1(),
-                'Address2'        => $order->get_shipping_address_2(),
-                'City'            => $order->get_shipping_city(),
-                'State'           => $order->get_shipping_state(),
-                'PostalCode'      => $order->get_shipping_postcode(),
-                'Country'         => $order->get_shipping_country(),
-//              'Telephone'       => $order->get_shipping_phone(), // This field is not in WooCommerce
-//              'Email'           => $order->get_shipping_email(), // This field is not in WooCommerce
-                ],
-            ];
+                'PrimaryName'     => !empty($order->get_shipping_company())  ? $order->get_shipping_company()  : $order->get_formatted_shipping_full_name(),
+                'Contact'         => !empty($order->get_shipping_company())  ? $order->get_formatted_shipping_full_name() : '',
+                'Address1'        => !empty($order->get_shipping_address_1())? $order->get_shipping_address_1(): $order->get_billing_address_1(),
+                'Address2'        => !empty($order->get_shipping_address_2())? $order->get_shipping_address_2(): $order->get_billing_address_2(),
+                'City'            => !empty($order->get_shipping_city())     ? $order->get_shipping_city()     : $order->get_billing_city(),
+                'State'           => !empty($order->get_shipping_state())    ? $order->get_shipping_state()    : $order->get_billing_state(),
+                'PostalCode'      => !empty($order->get_shipping_postcode()) ? $order->get_shipping_postcode() : $order->get_billing_postcode(),
+                'Country'         => !empty($order->get_shipping_country())  ? $order->get_shipping_country()  : $order->get_billing_country(),
+                'Telephone'       => !empty($order->get_shipping_phone())    ? $order->get_shipping_phone()    : $order->get_billing_phone(),
+                'Email'           => $order->get_billing_email()]];
         $this->mapProducts($map, $order);
         return $map; // json_encode($Map, JSON_UNESCAPED_UNICODE);
     }
