@@ -4,7 +4,7 @@
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-07-11
+ * @version    3.x Last Update: 2025-06-26
  * @filesource /bizuno-api/lib/order.php
  */
 
@@ -345,7 +345,7 @@ class order extends common
         dbWrite(BIZUNO_DB_PREFIX.'journal_item', ['description'=>$iID['description'],'trans_code'=>$transID], 'update', "id={$iID['id']}");
     }
 
-    /***************************** SHIP CONFIRMATION **************************************/
+    /*******************************************************************/
     /**
      * Updates order status
      * @return null - fills the messageStack
@@ -388,43 +388,5 @@ class order extends common
             if (!empty($box['tracking_id'])) { $tracking[] = $box['tracking_id']; }
         }
         return implode(', ', $tracking);
-    }
-    /***************************** SALES TAX METHODS **************************************/
-    public function bizuno_api_process_tax_meta_box_action( $order ) {
-        $this->bizuno_api_manual_download($order->id);
-    }
-
-    public function getTaxVersion(&$layout=[])
-    {
-        global $portal;
-msgTrap();
-        $this->client_open();        
-        $curVersion = \get_option ( 'bizuno_tax_version', false );
-        msgDebug("\nRead current version from options table = ".print_r($curVersion, true));
-//      if (empty($curVersion)) { update_option ( 'bizuno_tax_version', '2024.01' ); } // set it for the first time
-        msgDebug("\nCalling PhreeSoft GET at url: ".PHREESOFT_URL);
-        $resp = $portal->restRequest('get', PHREESOFT_URL, 'sales_tax_ver');
-        msgDebug("\nBack with response = ".print_r($resp, true));
-        if (!empty($result['tax_version'])) {
-            if (version_compare($result['tax_version'], $curVersion) > 0) {
-                msgAdd("A new tax table version is available, please download it by clicking the Download Tax button and update your WordPress site.", 'info');
-            } else {
-                msgAdd("Your tax rate tables are current", 'info');
-            }
-        } else { msgAdd("There was an issue retrieving the sales tax rate table version from Phreesoft. Please try again later.", 'trap'); }
-        $this->client_close();
-    }
-
-    public function getTaxTable()
-    {
-        global $portal;
-msgTrap();
-        $this->client_open();
-        msgDebug("\nCalling PhreeSoft GET at url: ".PHREESOFT_URL); 
-        $resp = $portal->restRequest('get', PHREESOFT_URL, 'tax_table_dump');
-        msgDebug("\nBack with size of response = ".sizeof((array)$resp));
-        // put the file in temp folder
-        // clean out current tax table
-        // import new values into table
     }
 }

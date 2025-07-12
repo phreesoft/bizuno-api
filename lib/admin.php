@@ -4,7 +4,7 @@
  *
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-07-11
+ * @version    3.x Last Update: 2025-03-14
  * @filesource ISP WordPress /bizuno-erp/lib/admin.php
  */
 
@@ -92,7 +92,6 @@ class admin extends common
     public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
         if (get_post_meta( get_the_ID(), 'bizuno_order_exported', true ) ) { return $actions; }
         $actions['bizuno_export_action'] = __('Export order to Bizuno', 'bizuno-api');
-        $actions['bizuno_tax_action']    = __('Fetch Tax Table Version', 'bizuno-api');
         return $actions;
     }
 

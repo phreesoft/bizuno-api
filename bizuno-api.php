@@ -66,7 +66,6 @@ class bizuno_api
 //      add_action ( 'wp_ajax_bizuno_ajax',       [ $this, 'bizunoAjax' ] );
 //      add_action ( 'wp_ajax_nopriv_bizuno_ajax',[ $this, 'bizunoAjax' ] );
         add_action ( 'plugins_loaded',            [ $this, 'ps_plugins_loaded' ] );
-        add_action ( 'admin_notices',             [ $this, 'ps_messages' ] );
 //      add_action ( 'edit_user_profile',         [ $this->account, 'bizunoUserEdit'] );
 //      add_action ( 'show_user_profile',         [ $this->account, 'bizunoUserEdit'] );
 //      add_action ( 'personal_options_update',   [ $this->account, 'bizunoUserSave'] );
@@ -81,7 +80,6 @@ class bizuno_api
 //          add_action ( 'manage_woocommerce_page_wc-orders_custom_column',  [ $this->admin,  'bizuno_api_order_column_content' ], 25, 2 ); // Works with HPOS???
             add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,  'bizuno_api_order_preview_action' ] );
             add_action ( 'woocommerce_order_action_bizuno_export_action',    [ $this->order,  'bizuno_api_process_order_meta_box_action' ] );
-add_action ( 'woocommerce_order_action_bizuno_tax_action', [ $this->order, 'bizuno_api_process_tax_meta_box_action' ] );
             add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,  'bizuno_api_manual_download' ], 10);
             add_action ( 'woocommerce_thankyou',                             [ $this->order,  'bizuno_api_post_payment' ], 10, 1);
             // WooCommerce Filters
@@ -103,29 +101,6 @@ add_action ( 'woocommerce_order_action_bizuno_tax_action', [ $this->order, 'bizu
             'show_in_admin_all_list'   => true,
             'show_in_admin_status_list'=> true,
             'label_count'              => _n_noop( 'Shipped <span class="count">(%s)</span>', 'Shipped <span class="count">(%s)</span>' )] );
-    }
-    public function ps_messages()
-    {
-        global $msgStack;
-        if (!is_object($msgStack)) {
-            echo '<div class="notice notice-error is-dismissible"><p><strong>Error!</strong>Class msgStack is not present!</p></div>';
-            return;
-        }
-        if (!empty($msgStack->error['error']))   { foreach ($msgStack->error['error'] as $msg)   {
-            echo '<div class="notice notice-error is-dismissible"><p><strong>Error!</strong>'.$msg.'</p></div>';
-        } }
-        if (!empty($msgStack->error['warning'])) { foreach ($msgStack->error['warning'] as $msg) {
-            echo '<div class="notice notice-error is-dismissible"><p><strong>Error!</strong>'.$msg.'</p></div>';
-        } }
-        if (!empty($msgStack->error['caution'])) { foreach ($msgStack->error['caution'] as $msg) {
-            echo '<div class="notice notice-error is-dismissible"><p><strong>Error!</strong>'.$msg.'</p></div>';
-        } }
-        if (!empty($msgStack->error['info']))    { foreach ($msgStack->error['info'] as $msg)    {
-            echo '<div class="notice notice-success is-dismissible"><p><strong>Error!</strong>'.$msg.'</p></div>';
-        } }
-        if (!empty($msgStack->error['success'])) { foreach ($msgStack->error['success'] as $msg) {
-            echo '<div class="notice notice-success is-dismissible"><p><strong>Error!</strong>'.$msg.'</p></div>';
-        } }
     }
     public function ps_woocommerce_init()
     {
