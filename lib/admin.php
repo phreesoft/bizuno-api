@@ -161,6 +161,20 @@ class admin extends common
     <input type="submit" name="submit" id="submit" class="button button-primary" value="Save Changes">
   </form>
 </div>'; //  interface to Bizuno Accounting
+/* @TODO - This will have the creds to connect to PhreeSoft for subscribed tax service but needs to be fully implemented
+ * since the password can be easily read by other apps via the DB which will expose the credentials of the custoemr to
+ * at PhreeSoft site where they can cause a lot of trouble.
+
+      <tr><th scope="row">PhreeSoft.com API Username:</th><td>
+        <input type="text" name="bizuno_api_psapi_user_name" value="'.$this->options['psapi_user_name'].'" size="40"><br />
+          Enter the username used at PhreeSoft.com to access the API functionality.
+      </td></tr>
+      <tr><th scope="row">REST User Password:</th><td>
+        <input type="password" name="bizuno_api_psapi_user_pass" value="'.$this->options['psapi_user_pass'].'" size="40"><br />
+          Enter the password used at PhreeSoft.com to access the API functionality.
+      </td></tr>
+
+ */
         echo $html;
     }
 
