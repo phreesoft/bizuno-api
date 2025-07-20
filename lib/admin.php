@@ -1,11 +1,28 @@
 <?php
 /**
- * ISP Hosted WordPress Plugin - admin class
+ * Bizuno API WordPress Plugin - admin class
  *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * DISCLAIMER
+ * Do not edit or add to this file if you wish to upgrade Bizuno to newer
+ * versions in the future. If you wish to customize Bizuno for your
+ * needs please contact PhreeSoft for more information.
+ *
+ * @name       Bizuno ERP
+ * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
- * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-03-14
- * @filesource ISP WordPress /bizuno-erp/lib/admin.php
+ * @license    https://www.gnu.org/licenses/agpl-3.0.txt
+ * @version    7.x Last Update: 2025-07-20
+ * @filesource /lib/admin.php
  */
 
 namespace bizuno;
@@ -15,11 +32,11 @@ class admin extends common
     public $api_local = false; // ISP Hosted so books are at another url
 
     function __construct() {
-        $this->defaults = ['url' => '',
-//          'oauth_client_id'=> '',  'oauth_client_secret'=> '', // oAuth not implemented yet.
-            'rest_user_name' => '',  'rest_user_pass'     => '',
-            'prefix_order'   => 'WC','prefix_customer'    => 'WC',
-            'journal_id'     => 0,   'autodownload'       => 0];
+        $this->defaults = ['url'=>'',
+            'rest_user_name' => '',  'rest_user_pass' => '',
+            'prefix_order'   => 'WC','prefix_customer'=> 'WC',
+            'journal_id'     => 0,   'autodownload'   => 0,
+            'tax_enable'     => 0,   'tax_nexus'      => []];
         $this->is_post = isset($_POST['bizuno_api_form_updated']) && $_POST['bizuno_api_form_updated'] == 'Y' ? true : false;
         $this->options = $this->processOptions($this->defaults);
     }
@@ -156,25 +173,35 @@ class admin extends common
         <input type="checkbox" name="bizuno_api_autodownload"'.(!empty($this->options['autodownload'])?' checked':'').'><br />
           If checked, your orders will automatically be downloaded to Bizuno and status at the cart marked complete just after the customer completes the order.
       </td></tr>
+      <tr><th scope="row">Enable Bizuno RESTful Tax?</th><td>
+        <input type="checkbox" name="bizuno_api_tax_enable"'.(!empty($this->options['tax_enable'])?' checked':'').'><br />
+          If checked, your orders will use the PhreeSoft tax service to lookup the tax rate based on the shipping zip code. NOTE: If this feature is enabled, the \'Enable taxes\' checkbox must be unchecked in the WooCommerce -> Settings -> General tab to avoid duplication of the tax calculation. 
+      </td></tr>
+      <tr><th scope="row">States with Sales Tax Nexus</th><td>
+        <select name="bizuno_api_tax_nexus[]" multiple size="10">'."\n";
+        $html.= $this->getStates('USA', $this->options['tax_nexus']);
+        $html.= '        </select><br />
+        Select all of the states that your business has a nexus in. Selected states will have thier tax rates tax calculated via the PhreeSoft tax service.
+      </td></tr>
     </tbody></table>
     <input type="submit" name="submit" id="submit" class="button button-primary" value="Save Changes">
   </form>
-</div>'; //  interface to Bizuno Accounting
-/* @TODO - This will have the creds to connect to PhreeSoft for subscribed tax service but needs to be fully implemented
- * since the password can be easily read by other apps via the DB which will expose the credentials of the custoemr to
- * at PhreeSoft site where they can cause a lot of trouble.
-
-      <tr><th scope="row">PhreeSoft.com API Username:</th><td>
-        <input type="text" name="bizuno_api_psapi_user_name" value="'.$this->options['psapi_user_name'].'" size="40"><br />
-          Enter the username used at PhreeSoft.com to access the API functionality.
-      </td></tr>
-      <tr><th scope="row">REST User Password:</th><td>
-        <input type="password" name="bizuno_api_psapi_user_pass" value="'.$this->options['psapi_user_pass'].'" size="40"><br />
-          Enter the password used at PhreeSoft.com to access the API functionality.
-      </td></tr>
-
- */
+</div>';
         echo $html;
+    }
+
+    private function getStates($iso3='USA', $vals=[])
+    {
+        $output = '';
+        $countries = localeLoadDB();
+        msgDebug("\ncountries = ".print_r($countries, true));
+        foreach ($countries->Locale as $country) {
+            if ($country->Country->ISO3<>$iso3) { continue; }
+            foreach($country->Country->Region as $state) {
+                $output .= '<option value="'.$state->Code.'"'.(in_array($state->Code, (array)$vals)? ' selected' : '').'>'.$state->Title.'</option>'."\n";
+            } 
+        }
+        return $output;
     }
 
     private function processOptions($values)
@@ -183,7 +210,8 @@ class admin extends common
         foreach ($values as $key => $default) {
             if (!empty($this->is_post)) {
                 switch ($key) {
-                    case 'autodownload':$output[$key] = isset( $_POST[ 'bizuno_api_'.$key ] ) ? 1 : 0; break;
+                    case 'autodownload':
+                    case 'tax_enable':  $output[$key] = isset( $_POST[ 'bizuno_api_'.$key ] ) ? 1 : 0; break;
                     default:            $output[$key] = $_POST[ 'bizuno_api_'.$key ];
                 }
                 update_option ( 'bizuno_api_'.$key, $output[$key] );

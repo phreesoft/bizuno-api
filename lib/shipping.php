@@ -1,24 +1,39 @@
 <?php
 /**
- * ISP Hosted WordPress Plugin - shipping class
+ * Bizuno API WordPress Plugin - shipping class
  *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * DISCLAIMER
+ * Do not edit or add to this file if you wish to upgrade Bizuno to newer
+ * versions in the future. If you wish to customize Bizuno for your
+ * needs please contact PhreeSoft for more information.
+ *
+ * @name       Bizuno ERP
+ * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
- * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2025-06-19
- * @filesource ISP WordPress /bizuno-api/lib/shipping.php
+ * @license    https://www.gnu.org/licenses/agpl-3.0.txt
+ * @version    7.x Last Update: 2025-07-20
+ * @filesource /lib/shipping.php
  */
 
 namespace bizuno;
 
 class shipping extends common
 {
-
     function __construct($options=[])
     {
         parent::__construct($options);
     }
-
-    /********************** Local get rate and return either local or REST *******************/
+    /********************** Local get rate and return values *******************/
     public function getRates($package=[])
     {
         $package['destination']['totalWeight'] = WC()->cart->get_cart_contents_weight();
@@ -34,14 +49,33 @@ class shipping extends common
         $this->client_close();
         return $layout['rates'];
     }
-    private function getRatesPrep()
-    {
-        $_POST['country_s']  = clean('country',    ['format'=>'alpha_num', 'default'=>''], 'get');
-        $_POST['state_s']    = clean('state',      ['format'=>'alpha_num', 'default'=>''], 'get');
-        $_POST['postcode_s'] = clean('postcode',   ['format'=>'alpha_num', 'default'=>''], 'get');
-        $_POST['city_s']     = clean('city',       ['format'=>'alpha_num', 'default'=>''], 'get');
-        $_POST['address1_s'] = clean('address1',   ['format'=>'alpha_num', 'default'=>''], 'get');
-        $_POST['address2_s'] = clean('address2',   ['format'=>'alpha_num', 'default'=>''], 'get');
-        $_POST['totalWeight']= round(clean('totalWeight',['format'=>'float', 'default'=>0], 'get'), 1);
+    public function add_bizuno_shipping_method( $methods ) { // Add the method to the list of available Methods
+        $methods['bizuno_shipping'] = 'WC_Bizuno_Shipping_Method';
+        return $methods;
+    }
+    
+    public function bizuno_validate_order( $posted )   {
+        $packages = WC()->shipping->get_packages();
+        $chosen_methods = WC()->session->get( 'chosen_shipping_methods' );
+        if ( is_array( $chosen_methods ) && in_array( 'tutsplus', $chosen_methods ) ) {
+            foreach ( $packages as $i => $package ) {
+                if ( $chosen_methods[ $i ] != "tutsplus" ) { continue; }
+                $TutsPlus_Shipping_Method = new TutsPlus_Shipping_Method();
+                $weightLimit = (int) $TutsPlus_Shipping_Method->settings['weight'];
+                $weight = 0;
+                foreach ( $package['contents'] as $item_id => $values ) {
+                    $_product = $values['data'];
+                    $weight = $weight + $_product->get_weight() * $values['quantity'];
+                }
+                $weight = wc_get_weight( $weight, 'kg' );
+                if ( $weight > $weightLimit ) {
+                    $message = sprintf( __( 'Sorry, %d kg exceeds the maximum weight of %d kg for %s', 'tutsplus' ), $weight, $weightLimit, $TutsPlus_Shipping_Method->title );
+                    $messageType = 'error'; // 'success', 'error', 'notice'
+                    if ( ! wc_has_notice( $message, $messageType ) ) {
+                        wc_add_notice( $message, $messageType );
+                    }
+                }
+            }
+        }
     }
 }

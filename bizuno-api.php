@@ -45,50 +45,52 @@ class bizuno_api
         register_activation_hook  ( __FILE__ ,  [ $this, 'activate' ] );
         register_deactivation_hook( __FILE__ ,  [ $this, 'deactivate' ] );
         // initialize Bizuno
-        $msgStack      = new \bizuno\messageStack();
-        $cleaner       = new \bizuno\cleaner();
-//      $html5         = new \bizuno\html5();
-//      $portal        = new \bizuno\portal();
-        $io            = new \bizuno\io();
-        $db            = new \bizuno\db(['type'=>'mysql','host'=>DB_HOST,'name'=>DB_NAME,'user'=>DB_USER,'pass'=>DB_PASSWORD,'prefix'=>$wpdb->prefix]);
-        $this->admin   = new \bizuno\admin(); // loads/updates the options for the plugin
-        $this->options = $this->admin->options;
-//      $this->account = new \bizuno\account($this->options);
-        $this->order   = new \bizuno\order($this->options);
-//      $this->payment = new \bizuno\payment($this->options);
-        $this->product = new \bizuno\product($this->options);
-//      $this->shipping= new \bizuno\shipping($this->options);
+        $msgStack       = new \bizuno\messageStack();
+        $cleaner        = new \bizuno\cleaner();
+        $io             = new \bizuno\io();
+        $db             = new \bizuno\db(['type'=>'mysql','host'=>DB_HOST,'name'=>DB_NAME,'user'=>DB_USER,'pass'=>DB_PASSWORD,'prefix'=>$wpdb->prefix]);
+        $this->admin    = new \bizuno\admin(); // loads/updates the options for the plugin
+        $this->options  = $this->admin->options;
+//$this->account = new \bizuno\account($this->options);
+        $this->order    = new \bizuno\order($this->options);
+//$this->payment = new \bizuno\payment($this->options);
+        $this->product  = new \bizuno\product($this->options);
+        $this->sales_tax= new \bizuno\sales_tax($this->options);
+        $this->shipping = new \bizuno\shipping($this->options);
         // WordPress Actions
-        add_action ( 'admin_menu',                [ $this->admin, 'bizuno_api_add_setting_submenu' ]);
+        add_action ( 'admin_menu',                [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
         add_action ( 'init',                      [ $this, 'ps_init' ] );
         add_action ( 'rest_api_init',             [ $this, 'ps_register_rest' ] );
         add_action ( 'woocommerce_init',          [ $this, 'ps_woocommerce_init' ] );
-//      add_action ( 'wp_ajax_bizuno_ajax',       [ $this, 'bizunoAjax' ] );
-//      add_action ( 'wp_ajax_nopriv_bizuno_ajax',[ $this, 'bizunoAjax' ] );
         add_action ( 'plugins_loaded',            [ $this, 'ps_plugins_loaded' ] );
-//      add_action ( 'edit_user_profile',         [ $this->account, 'bizunoUserEdit'] );
-//      add_action ( 'show_user_profile',         [ $this->account, 'bizunoUserEdit'] );
-//      add_action ( 'personal_options_update',   [ $this->account, 'bizunoUserSave'] );
-//      add_action ( 'edit_user_profile_update',  [ $this->account, 'bizunoUserSave'] );
         add_action ( 'bizuno_api_image_process',  [ $this->product, 'cron_image' ] );
+
         // WordPress Filters
         add_filter ( 'mime_types',                [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
         // WooCommerce hooks
         if ( in_array ( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
             // WooCommerce Actions
-            add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,  'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy???
-//          add_action ( 'manage_woocommerce_page_wc-orders_custom_column',  [ $this->admin,  'bizuno_api_order_column_content' ], 25, 2 ); // Works with HPOS???
-            add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,  'bizuno_api_order_preview_action' ] );
-            add_action ( 'woocommerce_order_action_bizuno_export_action',    [ $this->order,  'bizuno_api_process_order_meta_box_action' ] );
-            add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,  'bizuno_api_manual_download' ], 10);
-            add_action ( 'woocommerce_thankyou',                             [ $this->order,  'bizuno_api_post_payment' ], 10, 1);
+//          add_action ( 'woocommerce_order_before_calculate_taxes',         [ $this->sales_tax,'apply_bizuno_tax_class' ], 10, 2 );
+            add_action ( 'woocommerce_cart_calculate_fees',                  [ $this->sales_tax,'bizuno_rest_sales_tax' ], 10, 1 );
+            add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy???
+//add_action ( 'manage_woocommerce_page_wc-orders_custom_column',  [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Works with HPOS???
+            add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,    'bizuno_api_order_preview_action' ] );
+            add_action ( 'woocommerce_order_action_bizuno_export_action',    [ $this->order,    'bizuno_api_process_order_meta_box_action' ] );
+            add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10);
+            add_action ( 'woocommerce_thankyou',                             [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
+            add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
+            add_action ( 'woocommerce_after_checkout_validation',            [ $this->shipping, 'bizuno_validate_order' ], 10 );
+
             // WooCommerce Filters
-//          add_filter ( 'woocommerce_account_menu_items',                   [ $this->account,'biz_add_woo_tabs' ], 999 );
-            add_filter ( 'wc_order_statuses',                                [ $this->admin,  'add_shipped_to_order_statuses' ] );
-            add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,  'bizuno_api_order_column_header' ], 20 ); // Works with legacy???
-//          add_filter ( 'manage_woocommerce_page_wc-orders_columns',        [ $this->admin,  'bizuno_api_order_column_header' ], 20 ); // works with HPOS???
-            add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,  'bizuno_api_order_preview_filter' ], 10, 2);
-            add_filter ( 'woocommerce_order_actions',                        [ $this->admin,  'bizuno_api_add_order_meta_box_filter' ] );
+            add_filter ( 'woocommerce_tax_classes',                          [ $this->sales_tax,'add_bizuno_tax_class' ] );
+            add_filter ( 'woocommerce_tax_class_name',                       [ $this->sales_tax,'bizuno_tax_class_name' ], 10, 2 );
+//add_filter ( 'woocommerce_account_menu_items',                   [ $this->account,  'biz_add_woo_tabs' ], 999 );
+            add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
+            add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
+            add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy???
+//add_filter ( 'manage_woocommerce_page_wc-orders_columns',        [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // works with HPOS???
+            add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,    'bizuno_api_order_preview_filter' ], 10, 2);
+            add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
         }
     }
     public function ps_init()
@@ -118,8 +120,10 @@ class bizuno_api
     public function ps_register_rest()
     {
         if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) { // From Bizuno -> WordPress (uplink)
-            register_rest_route( 'bizuno-api/v1', 'shipping/rates',  ['methods' => 'GET', 'args'=>[],
-                'callback' => [ new \bizuno\shipping($this->options),'rates_list' ],     'permission_callback' => [$this, 'check_access'] ] );
+//            register_rest_route( 'bizuno-api/v1', 'sales_tax/calc',  ['methods' => 'POST', 'args'=>[],
+//                'callback' => [ new \bizuno\sales_tax($this->options),'calc_tax' ] ] );
+//            register_rest_route( 'bizuno-api/v1', 'shipping/rates',  ['methods' => 'GET', 'args'=>[],
+//                'callback' => [ new \bizuno\shipping($this->options),'rates_list' ],     'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/update',  ['methods' => 'POST','args'=>[],
                 'callback' => [ new \bizuno\product($this->options), 'product_update' ], 'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/refresh', ['methods' => 'PUT', 'args'=>[],
@@ -132,7 +136,6 @@ class bizuno_api
     }
     public function check_access(WP_REST_Request $request)
     {
-//return true;
         $email = $request->get_header('email');
         $pass  = $request->get_header('pass');
         if (empty($email) || empty($pass)) { return false; }

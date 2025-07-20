@@ -36,19 +36,20 @@ define('BIZUNO_SERVERS', [
 $subDom = explode('.', BIZUNO_SERVERS[$_SERVER['SERVER_ADDR']])[0];
 define('BIZUNO_SCRIPTS', "https://$subDom.bizuno.com/scripts/"); // pulled from a shared server
 
-require_once ( BIZUNO_REPO . 'bizunoCFG.php'); // Config for current release
-require_once ( BIZUNO_REPO . 'model/functions.php');
-require_once ( BIZUNO_ASSETS . 'autoload.php'); // Load the libraries
+require_once ( BIZUNO_REPO . 'bizunoCFG.php' ); // Config for current release
+require_once ( BIZUNO_REPO . 'model/functions.php' );
+require_once ( BIZUNO_ASSETS . 'autoload.php' ); // Load the libraries
 
 //require_once ( dirname(__FILE__) . '/bizApiCFG.php' );
 // Library files for plugin operations
-require_once ( dirname(__FILE__) . '/lib/model.php');
+require_once ( dirname(__FILE__) . '/lib/model.php' );
 require_once ( dirname(__FILE__) . '/lib/common.php' );
 require_once ( dirname(__FILE__) . '/lib/admin.php' );
 //require_once ( dirname(__FILE__) . '/lib/account.php' );
 require_once ( dirname(__FILE__) . '/lib/order.php' );
 //require_once ( dirname(__FILE__) . '/lib/payment.php' );
 require_once ( dirname(__FILE__) . '/lib/product.php' );
+require_once ( dirname(__FILE__) . '/lib/sales_tax.php' );
 require_once ( dirname(__FILE__) . '/lib/shipping.php' );
 
 require_once ( BIZBOOKS_ROOT.'locale/cleaner.php');
