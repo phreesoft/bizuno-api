@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-07-27
  * @filesource /lib/product.php
  */
 
@@ -29,7 +29,8 @@ namespace bizuno;
 
 class product extends common
 {
-    public $userID = 0;
+    public $productID  = 0;
+    private $fileBirdActive;
 
     function __construct($options=[])
     {
@@ -56,19 +57,6 @@ class product extends common
     }
 
     /********************** REST Endpoints ************************/
-    public function product_price($request)
-    {
-        $this->rest_open($request);
-        $sku   = clean('sku', 'text', 'get');
-        $cID   = intval(substr(clean('cID', 'text', 'get'), 1));
-        $qty   = clean('qty', 'text', 'get');
-        $args  = ['sku'=>$sku, 'cID'=>$cID, 'qty'=>$qty];
-        msgDebug("\ncalling get Price with args = ".print_r($args, true));
-        $price = $this->productPrice($args);
-        $output= ['result'=>!empty($price)?'Success':'Fail', 'price'=>$price];
-        msgDebug("\nREST returning results: ".print_r($output, true));
-        return $this->rest_close($output);
-    }
     public function product_update($request)
     {
         $data  = $this->rest_open($request);
@@ -91,180 +79,117 @@ class product extends common
         return $this->rest_close($output);
     }
 
-    /************** Bizuno Processing ******************/
-    // WooCommerce Filter Hook call to get users price from Bizuno
-    public function adjustPrice($price, $product)
-    {
-        $user = \wp_get_current_user();
-        if (empty($user) || !$this->bizActive) { return $price; } // not logged in
-        $sku = $product->get_sku();
-        if (!empty($GLOBALS['bizBooks']['sku'][$sku]['price'])) { // see if it is cached
-            return $GLOBALS['bizBooks']['sku'][$sku]['price'];
-        }
-        $this->client_open();
-        $wID = \get_user_meta( $user->ID, 'bizuno_wallet_id', true);
-        msgDebug("\nRead wallet ID = $wID");
-        if (empty($wID)) { $this->client_close(); return $price; } // not linked to Bizuno
-        $args= ['sku'=>$sku, 'cID'=>$wID, 'qty'=>1];
-        if ($this->api_local) { // we're here so just go and get it
-            $bizPrice = $this->productPrice($args);
-        } else { // Use REST to connect and fetch the data
-            $resp = $this->restGo('get', $this->options['url'], 'product/price', $args);
-            if (isset($resp['message'])) { msgMerge($resp['message']); }
-            $bizPrice = !empty($resp['price']) ? $resp['price'] : $price;
-        }
-        if (!empty($bizPrice)) { $price = $bizPrice; }
-        $this->client_close();
-        $GLOBALS['bizBooks']['sku'][$args['sku']]['price'] = $price;
-        return $price;
-    }
-
-    /**
-     * Fetches the price via the Bizuno price manager for a given customer
-     * @param type $args
-     * @return type
-     */
-    public function productPrice($args=[])
-    {
-        $layout = ['args'=>$args];
-        \bizuno\compose('inventory', 'prices', 'quote', $layout);
-        if     (!empty($layout['content']['sale_price'])){ $price = $layout['content']['sale_price']; }
-        elseif (!empty($layout['content']['price']))     { $price = $layout['content']['price']; }
-        return $price;
-    }
-
+    /************** API Product Processing ******************/
     /**
      * Starts the import of product to WooCommerce
-     * @param type $product
+     * @param type $post
      * @return type
      */
-    public function productImport($product)
+    public function productImport($post)
     {
         global $wcProduct;
         set_time_limit(60); // set timeout to 1 minute, imagemgk is verty slow when doing a full upload
-        msgDebug("\nEntering productImport with sku = {$product['SKU']} and sizeof product = ".sizeof($product));
-        if (empty($product['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
-        $slug = !empty($product['WooCommerceSlug']) ? $product['WooCommerceSlug'] : $product['Description'];
-        if (isset($product['WeightUOM'])) { // convert weight (need to convert kg,lb,oz,g)
-            $weightUOM= !empty($product['WeightUOM']) ? strtolower($product['WeightUOM']) : 'lb';
+        msgDebug("\nEntering productImport with sku = {$post['SKU']} and sizeof product = ".sizeof($post));
+        if (empty($post['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
+        $wcProduct = $this->getProduct($post);
+        
+        $slug = !empty($post['WooCommerceSlug']) ? $post['WooCommerceSlug'] : $post['Description'];
+        if (isset($post['WeightUOM'])) { // convert weight (need to convert kg,lb,oz,g)
+            $weightUOM= !empty($post['WeightUOM']) ? strtolower($post['WeightUOM']) : 'lb';
             $wooWt    = \get_option('woocommerce_weight_unit');
             $wp_weight= !empty($wooWt) ? strtolower($wooWt) : 'lb';
-            $weight   = isset($product['Weight']) ? $this->convertWeight($product['Weight'], $weightUOM, $wp_weight) : '';
+            $weight   = isset($post['Weight']) ? $this->convertWeight($post['Weight'], $weightUOM, $wp_weight) : '';
         }
-        if (isset($product['DimensionUOM'])) { //convert dim (need to convert m,cm,mm,in,yd)
-            $dim = strtolower($product['DimensionUOM']);
+        if (isset($post['DimensionUOM'])) { //convert dim (need to convert m,cm,mm,in,yd)
+            $dim = strtolower($post['DimensionUOM']);
             $wordpress_dim = strtolower(\get_option('woocommerce_dimension_unit'));
-            $length = isset($product['ProductLength'])? $this->convertLength($product['ProductLength'],$dim, $wordpress_dim) : '';
-            $width  = isset($product['ProductWidth']) ? $this->convertLength($product['ProductWidth'], $dim, $wordpress_dim) : '';
-            $height = isset($product['ProductHeight'])? $this->convertLength($product['ProductHeight'],$dim, $wordpress_dim) : '';
+            $length = isset($post['ProductLength'])? $this->convertLength($post['ProductLength'],$dim, $wordpress_dim) : '';
+            $width  = isset($post['ProductWidth']) ? $this->convertLength($post['ProductWidth'], $dim, $wordpress_dim) : '';
+            $height = isset($post['ProductHeight'])? $this->convertLength($post['ProductHeight'],$dim, $wordpress_dim) : '';
         }
-
-        $this->productType = !empty($product['Type']) ? strtolower($product['Type']) : 'si'; // allows change of product type on the fly
-        $wcProduct = $this->getProduct($product['SKU']);
         // Let's go
         $product_id = $wcProduct->get_id();
         msgDebug("\nSetting fields and meta data");
         $wcProduct->set_date_modified(\wp_date('Y-m-d H:i:s'));
-        $wcProduct->set_description(!empty($product['DescriptionLong']) ? $product['DescriptionLong'] : $product['DescriptionSales']);
+        $wcProduct->set_description(!empty($post['DescriptionLong']) ? $post['DescriptionLong'] : $post['DescriptionSales']);
         $wcProduct->set_length($length);
         $wcProduct->set_width($width);
         $wcProduct->set_height($height);
         $wcProduct->set_weight($weight);
-        $wcProduct->set_manage_stock(!empty($product['Virtual']) ? 'no' : 'yes');
-        $wcProduct->set_menu_order(!empty($product['MenuOrder']) ? (int)$product['MenuOrder'] : 99);
-        $wcProduct->set_name($product['Description']);
-        msgDebug("\nSetting price to ".$product['Price']);
-        $wcProduct->set_price(floatval($product['Price']));
-        $wcProduct->set_regular_price(floatval($product['Price']));
+        $wcProduct->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
+        $wcProduct->set_backorders($this->options['inv_backorders']);
+        $wcProduct->set_menu_order(!empty($post['MenuOrder']) ? (int)$post['MenuOrder'] : 99);
+        $wcProduct->set_name($post['Description']);
+        msgDebug("\nSetting price to ".$post['Price']);
+        $wcProduct->set_price(floatval($post['Price']));
+        $wcProduct->set_regular_price(floatval($post['Price']));
         $wcProduct->set_sale_price('');
-//      $wcProduct->set_regular_price(!empty($product['RegularPrice']) ? $product['RegularPrice'] : '');
-//      $wcProduct->set_sale_price(!empty($product['SalePrice']) ? $product['SalePrice'] : '');
-        $wcProduct->set_short_description(!empty($product['DescriptionSales']) ? $product['DescriptionSales'] : $product['Description']);
+//      $wcProduct->set_regular_price(!empty($post['RegularPrice']) ? $post['RegularPrice'] : '');
+//      $wcProduct->set_sale_price(!empty($post['SalePrice']) ? $post['SalePrice'] : '');
+        $wcProduct->set_short_description(!empty($post['DescriptionSales']) ? $post['DescriptionSales'] : $post['Description']);
         $wcProduct->set_slug($this->getPermaLink($slug));
 //      $wcProduct->set_status('published');
-        $wcProduct->set_stock_quantity($product['QtyStock'] > 0 ? $product['QtyStock'] : 0);
-        $wcProduct->set_stock_status($product['QtyStock'] > 0 ? 'instock' : 'outofstock');
+        $wcProduct->set_stock_quantity($post['QtyStock'] > 0 ? $post['QtyStock'] : 0);
+        $wcProduct->set_stock_status($post['QtyStock'] > 0 ? 'instock' : 'outofstock');
         $wcProduct->set_tax_status('taxable');
         msgDebug("\nChecking on sendMode and starting appropriate sequence");
-        switch ($product['sendMode']) {
+        switch ($post['sendMode']) {
             default: // default needs to be here so the individula upload sends everyhthing.
             case 1: $replaceImage = true;// Full Upload (Slowest - replace/regenerate all images)
             case 2: // Full Product Details (Skip images if present)
-                $this->productImage($product, $product_id, !empty($replaceImage) ? true : false); // Set images
+                $this->productImage($post, $product_id, !empty($replaceImage) ? true : false); // Set images
             case 3: // Product Core Info (No Categories/Images)
-                $this->productAttributes($product, $product_id); // Update attributes
-                $this->productRelated($product); // Set related products
-                if (!empty($product['invOptions'])) { $this->productVariations($product['invOptions'], $product_id); } // check for master stock type
-                $this->productMetadata($product);
-                $this->productTags($product, $product_id);
-                $this->productCategory($product, $product_id); //update category
-                $this->productPriceLevels($product, $product_id); // update the price levels, if present
+                $this->productAttributes($post, $product_id); // Update attributes
+                $this->productRelated($post); // Set related products
+                if (!empty($post['invOptions'])) { $this->productVariations($post['invOptions'], $product_id); } // check for master stock type
+                $this->productMetadata($post);
+                $this->productTags($post, $product_id);
+                $this->productCategory($post, $product_id); //update category
                 break;
         }
         msgDebug("\nSaving the product.");
         $wcProduct->save();
         msgDebug("\nChecking for Sell Qtys"); // Checking for price levels by Item
-        if (!empty($product['PriceByItem'])) { $this->priceVariations($wcProduct, $product['PriceByItem']); }
+        if (!empty($post['PriceByItem'])) { $this->priceVariations($wcProduct, $post['PriceByItem']); }
         return $product_id;
     }
 
-    private function getProduct($sku='')
+    private function getProduct($post)
     {
-        $existingID = \wc_get_product_id_by_sku($sku);
-        msgDebug("\nFetched product ID = $existingID");
-        if (empty($existingID)) { // The new way returns zero for products uploaded in early versions of the API, try to old way, just in case
-            $existingID = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($sku)."'", true);
-            msgDebug("\nTried the old way, product ID is now = $existingID");
+        $this->productID = \wc_get_product_id_by_sku($post['SKU']);
+        msgDebug("\nEntering getProduct, fetched product ID = $this->productID");
+        if (empty($this->productID)) { // The new way returns zero for products uploaded in early versions of the API, try to old way, just in case
+            $this->productID = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($post['SKU'])."'", true);
+            msgDebug("\nTried the old way, product ID is now = $this->productID");
         }
-        // check to make sure the type in WooCommerce matches the type being uploaded
-        if ( empty($existingID) ) {
-            $wcProduct = $this->newProduct($sku, $this->productType);
-            msgDebug("\nMade new product, product ID is now = ".$wcProduct->get_id());
+        $productType = !empty($post['Type']) ? strtolower($post['Type']) : 'si'; // allows change of product type on the fly
+        if ( empty($this->productID) ) { // new product
+            msgDebug("\nNew product, starting class ... ");
+            if ('ms'===$productType || !empty($post['PriceByItem'])) {
+                msgDebug(" WC_Product_Variable");
+                $product =  new \WC_Product_Variable();
+            } else {
+                msgDebug(" WC_Product_Simple");
+                $product =  new \WC_Product_Simple();
+            }
+            $product->set_sku($post['SKU']);
+//          $product->set_date_created(!empty($post['DateCreated']) ? $post['DateCreated'] : \wp_date('Y-m-d H:i:s'));
+            $product->save(); // get an ID
+            msgDebug("\nMade new product, product ID is now = ".$product->get_id());
         } else {
-            $wcProduct = $this->checkType($existingID, $this->productType);
-        }
-        return $wcProduct;
-    }
-
-    private function newProduct($sku, $type='si')
-    {
-        msgDebug("\nStarting class WC_Product_Simple or WC_Product_Variable");
-        switch ($type) {
-//          case 'external':$wcProduct = new WC_Product_External(); break; // not supported
-//          case 'grouped': $wcProduct = new WC_Product_Grouped();  break; // not supported
-            case 'ms': msgDebug("\nStarting WC_Product_Variable for new product");
-                $wcProduct = new \WC_Product_Variable(); break;
-            default:
-            case 'si': msgDebug("\nStarting WC_Product_Simple for a new product");
-                $wcProduct = new \WC_Product_Simple();   break;
-        }
-        $wcProduct->set_sku($sku);
-//      $wcProduct->set_date_created(!empty($product['DateCreated']) ? $product['DateCreated'] : \wp_date('Y-m-d H:i:s'));
-        $wcProduct->save(); // get an ID
-        return $wcProduct;
-    }
-
-    private function checkType($product_id=0, $product_type='si')
-    {
-        msgDebug("\nEntering checkVariable");
-        $product = \wc_get_product( $product_id );
-/*
-// This was removed as it puts products back to simple although the user may have set to variable in WordPress manually and enters variations at the site level.
-// Also for PhreeSoft pricing customizations.
-        if ( $product->is_type( 'variable' ) && $product_type<>'ms' ) { // Make sure it is of type variable product
-            msgDebug("\nSetting type to simple");
-            \wp_remove_object_terms( $product_id, 'variable', 'product_type' );
-            \wp_set_object_terms( $product_id, 'simple', 'product_type', true );
-        } else */
-        if ( !$product->is_type( 'variable' ) && $product_type=='ms') { // changes the product type to variable if Master Stock type
-            msgDebug("\nSetting type to variable");
-            \wp_remove_object_terms( $product_id, 'simple', 'product_type' );
-            \wp_set_object_terms( $product_id, 'variable', 'product_type', true );
+            $product = \wc_get_product( $this->productID );
+            if ($product->is_type( 'simple' ) && ('ms'===$productType || !empty($post['PriceByItem']))) { // change it to variable
+                msgDebug("\nSetting type to variable");
+                $new_type = 'variable'; // only one way for now in case user changes at cart
+                $classname= \WC_Product_Factory::get_product_classname( $this->productID, $new_type );
+                $product= new $classname( $this->productID );
+                $product->save();
+            }
         }
         return $product;
     }
 
-    private function productRelated($product)
+    private function productRelated($post)
     {
 //      global $wcProduct;
         msgDebug("\nEntering productRelated");
@@ -272,102 +197,47 @@ class product extends common
         //
         //
         // fetch related id
-        if (!empty($product['invAccessory']) && is_array($product['invAccessory'])) {
-            $product['related'] = [];
-            foreach ($product['invAccessory'] as $related) {
+        if (!empty($post['invAccessory']) && is_array($post['invAccessory'])) {
+            $post['related'] = [];
+            foreach ($post['invAccessory'] as $related) {
                 $product_id = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` LIKE '_sku' AND `meta_value`='{$related}'", true);
-                if ($product_id !== false) { $product['related'][] = $product_id; }
+                if ($product_id !== false) { $post['related'][] = $product_id; }
             }
-            msgDebug("related items found:".print_r($product['related'], true));
+            msgDebug("related items found:".print_r($post['related'], true));
         }
-        if (isset($product['related'])) {
+        if (isset($post['related'])) {
 //            dbGetResult("DELETE FROM `". PORTAL_DB_PREFIX . "postmeta` WHERE post_id = '". (int)$product_id . "' AND meta_key = '_crosssell_ids';");
-//            dbGetResult("INSERT INTO " . PORTAL_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $product['related'] . "';");
+//            dbGetResult("INSERT INTO " . PORTAL_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $post['related'] . "';");
         }
     }
 
-    /**
-     * Enters the volume price if included with feed
-     *
-     * REQUIRES THE WooCommerce Bulk Pricing plug-in set to percentage discount (default)
-     * https://wordpress.org/plugins/woocommerce-bulk-discount/
-     *
-     * @param type $product
-     * @param type $product_id
-     * @return type
-     */
-    protected function productPriceLevels($product, $product_id)
-    {
-        msgDebug("\nEntering productPriceLevels and checking for Woocommerce Bulk Discount plugin active");
-        if ( !is_plugin_active( 'woocommerce-bulk-discount/woocommerce-bulk-discount.php' ) ) { return msgDebug("\nBulk Discount Plugin not active."); }
-        $resetMeta = true;
-        if (!empty($product['PriceLevels']) && is_array($product['PriceLevels']) ) {
-            foreach ($product['PriceLevels'] as $price) {
-                if (empty($price['default'])) { continue; } // only use values from default price sheet, if specified
-                $description = '<table style="border:1px solid black;width:300px"><tr><th colspan="2">Quantity Pricing</th></tr><tr><th>Qty</th><th>Price</th></tr>';
-                for ($i=0; $i<sizeof($price['levels']); $i++) {
-                    if ($i==0) { // first price is single qty, save to calc discount
-                        $full_price = !empty($price['levels'][$i]['price']) ? $price['levels'][$i]['price'] : 999999;
-                        continue;
-                    } // skip the first price level as it is the single unit price
-                    $resetMeta = false; // if we are here, there is more than 1 price in this discount group
-                    $description .= '<tr><td style="border: 1px solid black;text-align:center">'.$price['levels'][$i]['qty'].'</td><td style="border: 1px solid black;text-align:center">$ '.number_format($price['levels'][$i]['price'], 2).'</td></tr>';
-                    msgDebug("\nUpdating pricing for quantity: ".$price['levels'][$i]['qty']);
-                    update_post_meta($product_id, "_bulkdiscount_quantity_$i",      $price['levels'][$i]['qty']);
-                    update_post_meta($product_id, "_bulkdiscount_discount_$i",      round(((1 - $price['levels'][$i]['price']/$full_price) * 100), 3));
-                    update_post_meta($product_id, "_bulkdiscount_discount_fixed_$i",round(($full_price - $price['levels'][$i]['price']), 3));
-                }
-                // clean up extra levels, if they are present, i.e. number of discount levels were reduced.
-                for ($j=$i+1; $j<100; $j++) {
-                    $idx = get_post_meta( $product_id, "_bulkdiscount_quantity_$j");
-                    if (empty($idx)) {
-                        $j=100; // stop the loop
-                    } else {
-                        delete_post_meta( $product_id, "_bulkdiscount_quantity_$j");
-                        delete_post_meta( $product_id, "_bulkdiscount_discount_$j");
-                        delete_post_meta( $product_id, "_bulkdiscount_discount_fixed_$j");
-                    }
-                }
-            }
-            $description .= '</table>';
-        }
-        msgDebug("\nSetting the meta data for the description and enable flag");
-        if ($resetMeta) { // clear any fields that may have been there from a prior discount
-            update_post_meta( $product_id, '_bulkdiscount_enabled', 'no');
-            delete_post_meta( $product_id, '_bulkdiscount_text_info');
-        } else {
-            update_post_meta( $product_id, '_bulkdiscount_enabled', 'yes');
-            update_post_meta( $product_id, '_bulkdiscount_text_info', $description);
-        }
-    }
-
-    private function productMetadata($product)
+    private function productMetadata($post)
     {
         global $wcProduct;
-        if (!empty($product['SearchCode']))      { $wcProduct->update_meta_data('biz_search_code',      $product['SearchCode']); }
+        if (!empty($post['SearchCode']))      { $wcProduct->update_meta_data('biz_search_code',      $post['SearchCode']); }
         msgDebug("\nEntering productMetadata and checking for YOST SEO plugin active");
         if ( !is_plugin_active( 'wordpress-seo/wp-seo.php' ) ) { return; }
-        if (!empty($product['MetaDescription'])) { $wcProduct->update_meta_data('_yoast_wpseo_metadesc',$product['MetaDescription']); }
+        if (!empty($post['MetaDescription'])) { $wcProduct->update_meta_data('_yoast_wpseo_metadesc',$post['MetaDescription']); }
     }
 
     /**
      * Set the tags
-     * @param type $product
+     * @param type $post
      * @param type $product_id
      * @return boolean
      */
-    private function productTags($product, $product_id)
+    private function productTags($post, $product_id)
     {
-        msgDebug("\nEntering productTags product_id = $product_id with WooCommerceTags = ".print_r($product['WooCommerceTags'], true));
-        if (empty($product['WooCommerceTags'])) { return; }
+        msgDebug("\nEntering productTags product_id = $product_id with WooCommerceTags = ".print_r($post['WooCommerceTags'], true));
+        if (empty($post['WooCommerceTags'])) { return; }
         $IDs = [];
         $current = \get_the_terms($product_id, 'product_tag');
         msgDebug("\nRetrieved terms = ".print_r($current, true));
         foreach ( (array)$current as $term) {
             if (!empty($term->name)) { $IDs[] = $term->name; }
         }
-        $sep = strpos($product['WooCommerceTags'], '|') !== false ? '|' : ';'; // new separator is the |
-        $tags= explode($sep, $product['WooCommerceTags']);
+        $sep = strpos($post['WooCommerceTags'], '|') !== false ? '|' : ';'; // new separator is the |
+        $tags= explode($sep, $post['WooCommerceTags']);
         foreach ($tags as $tag) {
             if (!empty(trim($tag))) { $IDs[] = trim($tag); } // sanitize_title makes the slug (lower no spaces) and also is used as the label which we don't want
         }
@@ -378,20 +248,20 @@ class product extends common
 
     /**
      *
-     * @param type $product
+     * @param type $post
      * @param type $product_id
      * @return boolean
      */
-    private function productCategory($product, $product_id)
+    private function productCategory($post, $product_id)
     {
         msgDebug("\nEntering productCategory");
-        if (empty($product['WooCommerceCategory'])) {
-            return msgAdd("Error - the category was not passed for product: {$product['SKU']}, it must be set manually in WooCommerce.", 'caution');
+        if (empty($post['WooCommerceCategory'])) {
+            return msgAdd("Error - the category was not passed for product: {$post['SKU']}, it must be set manually in WooCommerce.", 'caution');
         }
         $this->endCatOnly = false;
-        msgDebug("\nWorking with raw category: {$product['WooCommerceCategory']}");
+        msgDebug("\nWorking with raw category: {$post['WooCommerceCategory']}");
         // Multiple category breadcrumbs may be passed, use semi-colon as the separator
-        $categories = explode(";", $product['WooCommerceCategory']);
+        $categories = explode(";", $post['WooCommerceCategory']);
         foreach ($categories as $category) {
             $parent = 0;
             $descName = $niceName = '';
@@ -424,15 +294,15 @@ class product extends common
 
     /**
      * Add product attributes, this method just hard codes the value and avoids terms and taxonomy which creates a new term for every possible value
-     * @param type $product
+     * @param type $post
      * @param type $product_id
      * @return type
      */
-    private function productAttributes($product, $product_id)
+    private function productAttributes($post, $product_id)
     {
 //      global $wcProduct; // new way
         msgDebug("\nEntering productAttributes");
-        if (empty($product['Attributes'])) { return; }
+        if (empty($post['Attributes'])) { return; }
         $result      = dbGetMulti(PORTAL_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
         $pa_attr_ids = [];
         foreach ($result as $row) { $pa_attr_ids[] = $row['term_taxonomy_id']; }
@@ -440,10 +310,10 @@ class product extends common
             dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."term_relationships WHERE object_id=$product_id AND term_taxonomy_id IN (".implode(',',$pa_attr_ids).")");
         }
         $productAttr = [];
-        foreach ($product['Attributes'] as $idx => $row) {
+        foreach ($post['Attributes'] as $idx => $row) {
             if (empty($row['title']) || empty($row['index'])) { continue; }
             $attrSlug= $this->getPermaLink($row['index']);
-//          $attrSlug= $this->getPermaLink($product['AttributeCategory'].'_'.strtolower($row['index'])); // creates a lot of attributes and causes filtering issues
+//          $attrSlug= $this->getPermaLink($post['AttributeCategory'].'_'.strtolower($row['index'])); // creates a lot of attributes and causes filtering issues
             $exists  = dbGetValue(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
             if (!$exists) {
                 $newAttr = [
@@ -509,8 +379,6 @@ class product extends common
             $cnt++;
         }
         $wcProduct->set_attributes( $allAttrs );
-//      $wcProduct->save();
-
         // get the current variations keyed by sku for searching
         $existingIDs = $this->getCurrentVariations($product_id);
         // foreach variation in the request
@@ -545,13 +413,12 @@ class product extends common
                 $variation->set_price( $value['sale_price'] );
                 $variation->set_sale_price( $value['sale_price'] );
             }
-            if ( ! empty($value['stock_qty']) ){
+            if ( ! empty($value['stock_qty']) ) {
                 $variation->set_stock_quantity( $value['stock_qty'] );
-                $variation->set_manage_stock(true);
                 $variation->set_stock_status('');
-            } else {
-                $variation->set_manage_stock(false);
             }
+            $variation->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
+            $variation->set_backorders($this->options['inv_backorders']);
             $variation->save(); // Save the data
         }
         msgDebug("\nSetting default variations to ".print_r($variations['variations'][0]['attributes'], true));
@@ -586,21 +453,21 @@ class product extends common
 
     /**
      *
-     * @param type $product
+     * @param type $post
      * @param type $product_id
      * @return type
      */
-    private function productImage($product, $product_id, $replace=false)
+    private function productImage($post, $product_id, $replace=false)
     {
         global $wcProduct;
         msgDebug("\nEntering productImage with product ID = $product_id");
-        if (empty($product['ProductImageFilename'])) { return; }
+        if (empty($post['ProductImageFilename'])) { return; }
         $media = [];
         require_once( ABSPATH.'wp-admin/includes/image.php' );
-        $this->setImageProps($media, $product['ProductImageDirectory'], $product['ProductImageFilename'], $product['ProductImageData']);
-        if (!empty($product['Images']) && is_array($product['Images'])) {
-            msgDebug("\nReady to process extra Images with size of Images tag = ".sizeof($product['Images']));
-            foreach ($product['Images'] as $image) {
+        $this->setImageProps($media, $post['ProductImageDirectory'], $post['ProductImageFilename'], $post['ProductImageData']);
+        if (!empty($post['Images']) && is_array($post['Images'])) {
+            msgDebug("\nReady to process extra Images with size of Images tag = ".sizeof($post['Images']));
+            foreach ($post['Images'] as $image) {
                 $this->setImageProps($media, $image['Path'], $image['Filename'], $image['Data']);
             }
         } else { msgDebug("\nOnly one image, it will become the primary."); }
@@ -893,14 +760,10 @@ class product extends common
                 $variation->set_price( $value['sale_price'] );
                 $variation->set_sale_price( $value['sale_price'] );
             }
-//          if ( ! empty($value['stock']) ) { // commented out to always manage stock
             $variation->set_stock_quantity( $value['stock'] );
-            $variation->set_manage_stock(true);
+            $variation->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
             $variation->set_stock_status('');
-            $variation->set_backorders('yes'); // Options: 'yes', 'no' or 'notify'
-//          } else {
-//              $variation->set_manage_stock(false);
-//          }
+            $variation->set_backorders($this->options['inv_backorders']); // Options: 'yes', 'no' or 'notify'
             msgDebug("\nSaving variation");
             $variation->save(); // Save the data
         }
@@ -920,7 +783,7 @@ class product extends common
         $product->save(); // samve the parent product
     }
 
-    //     [PriceByItem] => {"total":3,"rows":[{"label":"Each (1 pieces)","qty":"1","weight":79.8,"price":288.47,"stock":7},{"label":"Pallet Layer (10 pieces)","qty":"10","weight":798,"price":2375.66,"stock":0},{"label":"Pallet (20 pieces)","qty":"20","weight":1596,"price":4072.56,"stock":0}]}
+    //     [Price ByItem] => {"total":3,"rows":[{"label":"Each (1 pieces)","qty":"1","weight":79.8,"price":288.47,"stock":7},{"label":"Pallet Layer (10 pieces)","qty":"10","weight":798,"price":2375.66,"stock":0},{"label":"Pallet (20 pieces)","qty":"20","weight":1596,"price":4072.56,"stock":0}]}
 
     private function reformatSellUnits($sellQtys)
     {
@@ -982,14 +845,13 @@ class product extends common
             if (empty($product)) { return msgAdd("Error - the variation is missing!"); }
             if (!$this->quickNoDiff($product, $data)) { 
                 $this->productQuickUpdate($product, $data);
-                $this->productPriceLevels($product, $productID); // update the price levels
+//              $this->productPriceLevels($product, $productID); // DEPRECATED - update the price levels
             } else { msgDebug("\nSkipping product Update, no changes."); }
             $priceByItem = !empty($item['PriceByItem']) ? $item['PriceByItem'] : '';
             if (!$this->byItemNoDiff($product, $priceByItem)) {
+                msgDebug("\nPricing variation update, make the changes.");
                 $this->priceVariations($product, $priceByItem);
-            } else { msgDebug("\nSkipping variation update, no changes"); }
-            // process byItem variations
-            if (!empty($data['PriceByItem'])) { }
+            }
         }
     }
 
@@ -1034,11 +896,10 @@ class product extends common
         $product->set_sale_price    (!empty($data['priceSale'])? $data['priceSale']: '');
         if (!empty($data['stock']) ){
             $product->set_stock_quantity( $data['stock'] );
-            $product->set_manage_stock(true);
             $product->set_stock_status('');
-        } else {
-            $product->set_manage_stock(false);
         }
+        $product->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
+        $product->set_backorders($this->options['inv_backorders']);
         if (!empty($data['weight'])) { $product->set_weight($data['weight']); }
         msgDebug("\nSaving product.");
         $product->save(); // Save to database and sync

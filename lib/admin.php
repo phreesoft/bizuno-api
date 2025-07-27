@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-07-27
  * @filesource /lib/admin.php
  */
 
@@ -33,10 +33,11 @@ class admin extends common
 
     function __construct() {
         $this->defaults = ['url'=>'',
-            'rest_user_name' => '',  'rest_user_pass' => '',
-            'prefix_order'   => 'WC','prefix_customer'=> 'WC',
-            'journal_id'     => 0,   'autodownload'   => 0,
-            'tax_enable'     => 0,   'tax_nexus'      => []];
+            'rest_user_name' => '',   'rest_user_pass' => '',
+            'inv_stock_mgt'  => false,'inv_backorders' => 'no',
+            'prefix_order'   => 'WC', 'prefix_customer'=> 'WC',
+            'journal_id'     => 0,    'autodownload'   => 0,
+            'tax_enable'     => 0,    'tax_nexus'      => []];
         $this->is_post = isset($_POST['bizuno_api_form_updated']) && $_POST['bizuno_api_form_updated'] == 'Y' ? true : false;
         $this->options = $this->processOptions($this->defaults);
     }
@@ -128,7 +129,7 @@ class admin extends common
   <form name="formBizAPI" method="post" action="">
     <input type="hidden" name="bizuno_api_form_updated" value="Y">
     <table class="form-table" role="presentation"><tbody>
-      <tr><td colspan="2"><h3>General Settings</h3></td></tr>
+<tr><td colspan="2"><h3>RESTful API Settings</h3></td></tr>
       <tr><th scope="row">Server URL:</th><td>
         <input type="text" name="bizuno_api_url" value="'.$this->options['url'].'" size="30"><br />
           Enter the full URL to the root of the website you are connecting to, e.g. https://biz.yoursite.com.
@@ -153,6 +154,20 @@ class admin extends common
         <input type="password" name="bizuno_api_rest_user_pass" value="'.$this->options['rest_user_pass'].'" size="40"><br />
           Enter the WordPress password for the API to connect to.
       </td></tr>
+<tr><td colspan="2"><h3>Product Settings</h3></td></tr>
+      <tr><th scope="row">Stock management</th><td>
+        <input type="checkbox" name="bizuno_api_inv_stock_mgt"'.(!empty($this->options['inv_stock_mgt'])?' checked':'').'><br />
+          If checked, the Stock Management box in WooCommerce -> Inventory will be checked for the product.
+      </td></tr>
+      <tr><th scope="row">Allow backorders?</th><td>
+        <select name="bizuno_api_inv_backorders">
+          <option value="no"'    . ($this->options['inv_backorders']=='no'    ? ' selected' : '') . '>Do not allow</option>
+          <option value="notify"'. ($this->options['inv_backorders']=='notify'? ' selected' : '') . '>Allow, but notify customer</option>
+          <option value="yes"'   . ($this->options['inv_backorders']=='yes'   ? ' selected' : '') . '>Allow</option>
+        </select><br />
+       Pre-selects the backorder option in WooCommerce -> Product -> Allow Backorders for the product.
+      </td></tr>
+<tr><td colspan="2"><h3>Order Settings</h3></td></tr>
       <tr><th scope="row">Prefix Orders with:</th><td>
         <input type="text" name="bizuno_api_prefix_order" value="'.$this->options['prefix_order'].'" size="8"><br />
           Placing a value here will help identify where the orders originated from.
