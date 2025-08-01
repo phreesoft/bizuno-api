@@ -72,15 +72,19 @@ class admin extends common
         }
         return $new_order_statuses;
     }
-    public function bizuno_api_order_column_header( $columns ) { // Add column to order summary page
+    public function bizuno_api_order_column_header( $columns ) { // Legacy mode - Add column to order summary page
         $reordered_columns = [];
         foreach ( $columns as $key => $column ) {
             $reordered_columns[$key] = $column;
-            if ( $key == 'order_status' ) { $reordered_columns['bizuno_download'] = __( 'Exported', 'bizuno_erp'); }
+            if ( $key == 'order_status' ) { $reordered_columns['bizuno_download'] = __( 'Exported', 'bizuno-api'); }
         }
         return $reordered_columns;
     }
-    public function bizuno_api_order_column_content($column) // $order
+    public function bizuno_api_order_column_header_hpos ( $columns ) { // HPOS mode
+        return $this->bizuno_api_order_column_header( $columns );
+    }
+    
+    public function bizuno_api_order_column_content ( $column ) // $order
     {
         global $the_order; // the global order object
         if ($column == 'bizuno_download') {
@@ -90,15 +94,19 @@ class admin extends common
                 echo '<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">'.__( 'No', 'bizuno_api' ).'</button>';
             } else { echo 'X&nbsp;'; }
         }
-/*        if ( 'bizuno_download' === $column ) {
-            echo 'X';
-            $exported = $order->get_meta( 'bizuno_order_exported', true ); // $order->get_meta( 'bizuno_order_exported', true );
-            if (empty($exported)) {
-                $tip = '';
+    }
+    public function bizuno_api_order_column_content_hpos ( $column, $order ) {
+        if ( 'bizuno_download' === $column ) {
+            $exported= $order->get_meta( 'bizuno_order_exported', true );
+            $status  = $order->get_status();
+            msgDebug("\nread meta_value = ".print_r($exported, true));
+            if (empty($exported) && !in_array($status, ['cancelled', 'on-hold'])) {
+                $tip = "status = $status";
                 echo '<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">'.__( 'No', 'bizuno_api' ).'</button>';
             } else { echo '&nbsp;'; }
-        } */
+        }
     }
+    
     public function bizuno_api_order_preview_filter( $data, $order ) { // Add download button to Preview pop up
         $data['bizuno_order_exported'] = $order->get_meta('bizuno_order_exported', true, 'edit') ? 'none' : 'block';
         return $data;

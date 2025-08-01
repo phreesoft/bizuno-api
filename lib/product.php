@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-27
+ * @version    7.x Last Update: 2025-07-30
  * @filesource /lib/product.php
  */
 
@@ -150,7 +150,7 @@ class product extends common
         msgDebug("\nSaving the product.");
         $wcProduct->save();
         msgDebug("\nChecking for Sell Qtys"); // Checking for price levels by Item
-        if (!empty($post['PriceByItem'])) { $this->priceVariations($wcProduct, $post['PriceByItem']); }
+        if (!empty($post['PriceVariations'])) { $this->priceVariations($wcProduct, $post['PriceVariations']); }
         return $product_id;
     }
 
@@ -165,7 +165,7 @@ class product extends common
         $productType = !empty($post['Type']) ? strtolower($post['Type']) : 'si'; // allows change of product type on the fly
         if ( empty($this->productID) ) { // new product
             msgDebug("\nNew product, starting class ... ");
-            if ('ms'===$productType || !empty($post['PriceByItem'])) {
+            if ('ms'===$productType || !empty($post['PriceVariations'])) {
                 msgDebug(" WC_Product_Variable");
                 $product =  new \WC_Product_Variable();
             } else {
@@ -177,11 +177,13 @@ class product extends common
             $product->save(); // get an ID
             msgDebug("\nMade new product, product ID is now = ".$product->get_id());
         } else {
-            $product = \wc_get_product( $this->productID );
-            if ($product->is_type( 'simple' ) && ('ms'===$productType || !empty($post['PriceByItem']))) { // change it to variable
-                msgDebug("\nSetting type to variable");
-                $new_type = 'variable'; // only one way for now in case user changes at cart
-                $classname= \WC_Product_Factory::get_product_classname( $this->productID, $new_type );
+            $product   = \wc_get_product( $this->productID );
+            $changeType= false;
+            if ($product->is_type( 'simple' )  && ('ms'===$productType || !empty($post['PriceVariations']))) { $changeType = 'variable'; }
+            if ($product->is_type( 'variable' )&& ('ms'<> $productType ||  empty($post['PriceVariations']))) { $changeType = 'simple'; }
+            if (!empty($changeType)) {
+                msgDebug("\nSetting type to: $changeType");
+                $classname= \WC_Product_Factory::get_product_classname( $this->productID, $changeType );
                 $product= new $classname( $this->productID );
                 $product->save();
             }
@@ -691,13 +693,13 @@ class product extends common
         $variation_data =  array( 'sku' => '','regular_price' => '22.00', 'sale_price' => '','stock_qty' => 10,
             'attributes' => array( 'size' => 'M', 'color' => 'Green', ) );
      * @param object $product
-     * @param array $PriceByItem
+     * @param array $PriceVar
      * @return null
      */
-    private function priceVariations($product, $PriceByItem='')
+    private function priceVariations($product, $PriceVar='')
     {
-        msgDebug("\nEntering priceVariations with sellQtys = ".print_r($PriceByItem, true));
-        $variations = $this->reformatSellUnits($PriceByItem);
+        msgDebug("\nEntering priceVariations with sellQtys = ".print_r($PriceVar, true));
+        $variations = $this->reformatSellUnits($PriceVar);
         \update_post_meta( $product->get_id(), 'bizSellQtys', $variations); // save the raw data for view pages
         // Process the attributes
         $allAttrs = $product->get_attributes();
@@ -787,9 +789,10 @@ class product extends common
 
     private function reformatSellUnits($sellQtys)
     {
-        $qtys = json_decode($sellQtys, true);
+        msgDebug("\nEntering reformatSellUnits"); // with sellQtys = ".print_r($sellQtys, true));
+//        $qtys = json_decode($sellQtys, true);
         $output = ['attributes'=>[['name'=>'price-discounts', 'options'=>[]]], 'variations'=>[]];
-        foreach ($qtys['rows'] as $row) {
+        foreach ($sellQtys as $row) {
             $output['variations'][] = ['qty'=>$row['qty'], 'price'=>$row['price'], 'weight'=>$row['weight'],'stock'=>$row['stock'],
                 'attributes'=>['price-discounts'=>$row['label']]];
             $output['attributes'][0]['options'][] = $row['label'];
@@ -825,11 +828,12 @@ class product extends common
     {
         global $wpdb;
         msgDebug("\nEntering productRefresh with products = ".print_r($items, true));
+        $missingSKUs = [];
         foreach ($items as $item) {
             $productID = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_sku' AND meta_value='%s' LIMIT 1", $item['SKU'] ) );
 //          $productID = \wc_get_product_id_by_sku($item['SKU']); // doesn't always return a hit, flagging not found error below???
             if (empty($productID)) {
-                if ($verbose) {msgAdd("SKU {$item['SKU']} needs to be created in your cart before you can refresh the price and stock. It will be skipped."); }
+                $missingSKUs[] = $item['SKU'];
                 continue;
             }
             $tempPrice = clean($item['Price'], 'currency');
@@ -837,7 +841,7 @@ class product extends common
             $priceReg  = !empty($item['RegularPrice'])? clean($item['RegularPrice'],'currency') : $price;
             $priceSale = !empty($item['SalePrice'])   ? clean($item['SalePrice'],   'currency') : '';
             $stock     = !empty($item['QtyStock'])    ? $item['QtyStock']                       : '';
-            $tempWeight= clean($item['Weight'],      'float');
+            $tempWeight= clean($item['Weight'],'float');
             $itemWeight= !empty($tempWeight)? $tempWeight : 0;
             $data      = ['price'=>$price, 'priceReg'=>$priceReg, 'priceSale'=>$priceSale, 'stock'=>$stock, 'weight'=>$itemWeight];
             $product   = new \WC_Product( $productID );
@@ -845,13 +849,15 @@ class product extends common
             if (empty($product)) { return msgAdd("Error - the variation is missing!"); }
             if (!$this->quickNoDiff($product, $data)) { 
                 $this->productQuickUpdate($product, $data);
-//              $this->productPriceLevels($product, $productID); // DEPRECATED - update the price levels
             } else { msgDebug("\nSkipping product Update, no changes."); }
-            $priceByItem = !empty($item['PriceByItem']) ? $item['PriceByItem'] : '';
-            if (!$this->byItemNoDiff($product, $priceByItem)) {
+            $PriceVar = !empty($item['PriceVariations']) ? $item['PriceVariations'] : [];
+            if (!$this->byItemNoDiff($product, $PriceVar)) {
                 msgDebug("\nPricing variation update, make the changes.");
-                $this->priceVariations($product, $priceByItem);
+                $this->priceVariations($product, $PriceVar);
             }
+        }
+        if (!empty($missingSKUs) && $verbose) {
+            msgAdd("The following SKUs are not in the cart yet you say they should be there: ".implode(', ', $missingSKUs));
         }
     }
 

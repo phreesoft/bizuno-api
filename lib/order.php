@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-07-28
  * @filesource /lib/order.php
  */
 
@@ -155,6 +155,17 @@ class order extends common
     }
     private function getTaxAmount($order)
     {
+        if (!empty($this->options['tax_enable'])) { // Uses PhreeSoft RESTful tax
+            $fees = $order->get_fees();
+            foreach ( $fees as $fee_item ) {
+                $name = $fee_item->get_name();
+                if ('Sales Tax'==$name) {
+                    $amount = $fee_item->get_total();
+                    msgDebug("\nRead RESTful sales tax amount = $amount");
+                    return !empty($amount) ? $amount : 0; // fixes if value is null
+                }
+            }
+        } // else Woocommerce tax calculator
         $temp = $order->get_tax_totals();
         $arrTax = array_shift($temp);
         return !empty($arrTax->amount) ? $arrTax->amount : 0;
