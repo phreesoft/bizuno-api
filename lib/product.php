@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-30
+ * @version    7.x Last Update: 2025-08-09
  * @filesource /lib/product.php
  */
 
@@ -176,7 +176,7 @@ class product extends common
 //          $product->set_date_created(!empty($post['DateCreated']) ? $post['DateCreated'] : \wp_date('Y-m-d H:i:s'));
             $product->save(); // get an ID
             msgDebug("\nMade new product, product ID is now = ".$product->get_id());
-        } else {
+        } else { // update existing product
             $product   = \wc_get_product( $this->productID );
             $changeType= false;
             if ($product->is_type( 'simple' )  && ('ms'===$productType || !empty($post['PriceVariations']))) { $changeType = 'variable'; }
