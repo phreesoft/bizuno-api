@@ -180,7 +180,7 @@ class product extends common
             $product   = \wc_get_product( $this->productID );
             $changeType= false;
             if ($product->is_type( 'simple' )  && ('ms'===$productType || !empty($post['PriceVariations']))) { $changeType = 'variable'; }
-            if ($product->is_type( 'variable' )&& ('ms'<> $productType ||  empty($post['PriceVariations']))) { $changeType = 'simple'; }
+            if ($product->is_type( 'variable' )&& ('ms'<> $productType &&  empty($post['PriceVariations']))) { $changeType = 'simple'; }
             if (!empty($changeType)) {
                 msgDebug("\nSetting type to: $changeType");
                 $classname= \WC_Product_Factory::get_product_classname( $this->productID, $changeType );
