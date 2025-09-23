@@ -14,9 +14,8 @@ namespace bizuno;
 /************** THIS NEEDS TO BE DYNAMIC TO SEE IF BIZUNO LIBRARY PLUGIN HAS BEEN LOADED *************/
 define('BIZUNO_REPO', '/usr/share/bizuno/vendor/phreesoft/bizuno/');
 define('BIZUNO_BIZID', 1);
-//$upload_dir = wp_upload_dir();
-//define ( 'BIZUNO_DATA',  $upload_dir['basedir'].'/bizuno/' );
-define ( 'BIZUNO_DATA',  $_SERVER['PHP_DOCUMENT_ROOT'].'/private/' );
+$homeDir = isset($_SERVER['PHP_DOCUMENT_ROOT']) ? $_SERVER['PHP_DOCUMENT_ROOT'] : $_SERVER['HOME'];
+define ( 'BIZUNO_DATA',  "$homeDir/private/" );
 define('BIZUNO_KEY', '0123456S890yQ345'); // 16 alpha-num characters, randomly generated
 // Database credentials
 define('PORTAL_DB_PREFIX', $wpdb->prefix); // WordPress table prefix
