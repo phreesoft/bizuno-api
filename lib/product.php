@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-08-09
+ * @version    7.x Last Update: 2025-10-05
  * @filesource /lib/product.php
  */
 
@@ -85,12 +85,13 @@ class product extends common
      * @param type $post
      * @return type
      */
-    public function productImport($post)
+    public function productImport($post=[])
     {
         global $wcProduct;
+        msgDebug("\nEntering productImport");
         set_time_limit(60); // set timeout to 1 minute, imagemgk is verty slow when doing a full upload
-        msgDebug("\nEntering productImport with sku = {$post['SKU']} and sizeof product = ".sizeof($post));
-        if (empty($post['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
+        if (!is_array($post) || empty($post['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
+        msgDebug(" with sku = {$post['SKU']} and sizeof product = ".sizeof($post));
         $wcProduct = $this->getProduct($post);
         
         $slug = !empty($post['WooCommerceSlug']) ? $post['WooCommerceSlug'] : $post['Description'];
