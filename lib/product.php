@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-10-05
+ * @version    7.x Last Update: 2025-10-06
  * @filesource /lib/product.php
  */
 
@@ -845,16 +845,14 @@ class product extends common
             $tempWeight= clean($item['Weight'],'float');
             $itemWeight= !empty($tempWeight)? $tempWeight : 0;
             $data      = ['price'=>$price, 'priceReg'=>$priceReg, 'priceSale'=>$priceSale, 'stock'=>$stock, 'weight'=>$itemWeight];
-            $product   = new \WC_Product( $productID );
-//          $product   = \wc_get_product( $productID ); // old way
+            $product   = $this->getProduct($item);
             if (empty($product)) { return msgAdd("Error - the variation is missing!"); }
             if (!$this->quickNoDiff($product, $data)) { 
                 $this->productQuickUpdate($product, $data);
             } else { msgDebug("\nSkipping product Update, no changes."); }
-            $PriceVar = !empty($item['PriceVariations']) ? $item['PriceVariations'] : [];
-            if (!$this->byItemNoDiff($product, $PriceVar)) {
+            if (!empty($item['PriceVariations'])) {
                 msgDebug("\nPricing variation update, make the changes.");
-                $this->priceVariations($product, $PriceVar);
+                $this->priceVariations($product, $item['PriceVariations']);
             }
         }
         if (!empty($missingSKUs) && $verbose) {
