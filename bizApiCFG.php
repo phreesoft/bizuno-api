@@ -5,7 +5,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    PhreeSoft Proprietary
- * @version    6.x Last Update: 2025-06-21
+ * @version    6.x Last Update: 2025-10-13
  * @filesource ISP Wordpress/bizunoCFG.php
  */
 
@@ -14,7 +14,7 @@ namespace bizuno;
 /************** THIS NEEDS TO BE DYNAMIC TO SEE IF BIZUNO LIBRARY PLUGIN HAS BEEN LOADED *************/
 define('BIZUNO_REPO', '/usr/share/bizuno/vendor/phreesoft/bizuno/');
 define('BIZUNO_BIZID', 1);
-$homeDir = isset($_SERVER['PHP_DOCUMENT_ROOT']) ? $_SERVER['PHP_DOCUMENT_ROOT'] : $_SERVER['HOME'];
+$homeDir = isset($_SERVER['HOME']) ? $_SERVER['HOME'] : $_SERVER['PHP_DOCUMENT_ROOT'];
 define ( 'BIZUNO_DATA',  "$homeDir/private/" );
 define('BIZUNO_KEY', '0123456S890yQ345'); // 16 alpha-num characters, randomly generated
 // Database credentials
@@ -29,11 +29,7 @@ define('BIZUNO_PATH',   '/var/www/'.BIZUNO_PORTAL.'/web/');
 define('BIZUNO_ASSETS', '/usr/share/bizuno/vendor/');
 // URL's
 define('BIZUNO_SRVR',    'https://'.BIZUNO_PORTAL.'/');
-define('BIZUNO_SERVERS', [
-    '75.112.81.5' =>'fl1', '75.112.81.6' =>'fl2', '75.112.81.7' =>'fl3', '75.112.81.8' =>'fl4',
-    '128.92.62.26'=>'tx1', '128.92.62.27'=>'tx2', '128.92.62.28'=>'tx3', '128.92.62.29'=>'tx4']);
-$subDom = explode('.', BIZUNO_SERVERS[$_SERVER['SERVER_ADDR']])[0];
-define('BIZUNO_SCRIPTS', "https://$subDom.bizuno.com/scripts/"); // pulled from a shared server
+define('BIZUNO_SCRIPTS', "https://ww2.bizuno.com/scripts/"); // pulled from a shared server
 
 require_once ( BIZUNO_REPO . 'bizunoCFG.php' ); // Config for current release
 require_once ( BIZUNO_REPO . 'model/functions.php' );

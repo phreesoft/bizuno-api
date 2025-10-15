@@ -45,6 +45,7 @@ class sales_tax extends common
     }
     public function bizuno_rest_sales_tax( $cart )
     {
+        msgDebug("\nEntering bizuno_rest_sales_tax.");
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) { return; }
         if ( empty($this->options['tax_enable'] ) )    { return; }
         $args = [
@@ -59,7 +60,7 @@ class sales_tax extends common
         $isTaxable = in_array($args['state'], $this->options['tax_nexus']) ? true : false;
         if (!$isTaxable) { return; }
         msgDebug("\nCalling API with args = ".print_r($args, true));
-        $this->options['url'] = 'https://www.bizuno.com';
+        $this->options['url'] = 'https://www.phreesoft.com/biz-portal/';
         $resp = json_decode($this->cURL('post', $args, 'getSalesTax'), true);
         msgDebug("\nBizuno-API getSalesTax received back from REST: ".print_r($resp, true));
         // error check response
