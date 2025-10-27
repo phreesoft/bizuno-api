@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-10-26
  * @filesource /lib/model.php
  */
 
@@ -64,7 +64,6 @@ function setUserCookie($user)
         }
     }
     setUserCache('profile', 'userID',  $user['userID']); // Local user ID
-    setUserCache('profile', 'admin_id',$user['userID']); // DEPRECATED - for leagcy
     setUserCache('profile', 'email',   $user['userEmail']);
     setUserCache('profile', 'psID',    $user['psID']); // PhreeSoft user ID
     setUserCache('profile', 'userRole',$user['userRole']);
