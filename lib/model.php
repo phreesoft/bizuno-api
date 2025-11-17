@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-10-26
+ * @version    7.x Last Update: 2025-11-16
  * @filesource /lib/model.php
  */
 
@@ -77,8 +77,6 @@ function setUserCookie($user)
 function portalModuleList() {
     $modList = [];
     portalModuleListScan($modList, 'BIZBOOKS_ROOT/controllers/'); // Core
-    portalModuleListScan($modList, 'BIZBOOKS_EXT/controllers/'); // Pro
-    portalModuleListScan($modList, 'BIZUNO_PATH/controllers/'); // Web root
     portalModuleListScan($modList, 'BIZUNO_DATA/myExt/controllers/'); // Custom
     msgDebug("\nReturning from portalModuleList with list: ".print_r($modList, true));
     return $modList;

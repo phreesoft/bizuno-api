@@ -12,61 +12,51 @@
  * Domain Path: /locale
  */
 
-if (!defined('ABSPATH')) { die('No script kiddies please!'); }
+defined( 'ABSPATH' ) || exit;
 
-if (!defined('SCRIPT_START_TIME')) { define('SCRIPT_START_TIME', microtime(true)); }
+// Library files for plugin operations
+require ( dirname(__FILE__) . '/lib/model.php' );
+require ( dirname(__FILE__) . '/lib/common.php' );
+require ( dirname(__FILE__) . '/lib/admin.php' );
+//require ( dirname(__FILE__) . '/lib/account.php' ); // need to finish development
+require ( dirname(__FILE__) . '/lib/order.php' );
+//require ( dirname(__FILE__) . '/lib/payment.php' ); // need to finish development
+require ( dirname(__FILE__) . '/lib/product.php' );
+require ( dirname(__FILE__) . '/lib/sales_tax.php' );
+require ( dirname(__FILE__) . '/lib/shipping.php' );
 
-require_once(dirname( __FILE__ ) . '/bizApiCFG.php');
-
-// Test for the Bizuno library to be installed which instantiates many of these files. 
-// Do not allow activation if the library is missing, provide lilnk to PhreeSoft where the library can be uploaded to the WP install
-
-// BIZUNO_SCRIPTS will be different for public installs
-// file system paths should also be set at the portal to allow for flexibility of where to put the Bizuno library.
- 
-// This plugin will be different for PhreeSoft cloud users than public self-hosted or WP installs, probably only the config file.
-// PhreeSoft cloud version will need the plugin checker for upgrading, the public version will use the WP svn repo
-
-// 
-
-
+// Load Woocommerce plugins only if WooCommerce is installed and active
 if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
-    require_once ( dirname( __FILE__ ) . '/plugins/payment-payfabric/payment-payfabric.php' );
-    require_once ( dirname( __FILE__ ) . '/plugins/payment-purchase-order.php' );
-    require_once ( dirname( __FILE__ ) . '/plugins/shipping-bizuno.php' );
+    require ( dirname( __FILE__ ) . '/plugins/payment-payfabric/payment-payfabric.php' );
+    require ( dirname( __FILE__ ) . '/plugins/payment-purchase-order.php' );
+    require ( dirname( __FILE__ ) . '/plugins/shipping-bizuno.php' );
 }
 
 class bizuno_api
 {
     public function __construct()
     {
-        global $msgStack, $db, $cleaner, $io, $wpdb; // , $html5, $portal
-        // Activate/Uninstall hooks
-        register_activation_hook  ( __FILE__ ,  [ $this, 'activate' ] );
-        register_deactivation_hook( __FILE__ ,  [ $this, 'deactivate' ] );
-        // initialize Bizuno
-        $msgStack       = new \bizuno\messageStack();
-        $cleaner        = new \bizuno\cleaner();
-        $io             = new \bizuno\io();
-        $db             = new \bizuno\db(['type'=>'mysql','host'=>DB_HOST,'name'=>DB_NAME,'user'=>DB_USER,'pass'=>DB_PASSWORD,'prefix'=>$wpdb->prefix]);
+        register_activation_hook  ( __FILE__ , [ $this, 'activate' ] );
+        register_deactivation_hook( __FILE__ , [ $this, 'deactivate' ] );
+        $this->initializeBizuno();
         $this->admin    = new \bizuno\admin(); // loads/updates the options for the plugin
         $this->options  = $this->admin->options;
-//$this->account = new \bizuno\account($this->options);
+//      $this->account  = new \bizuno\account($this->options);
         $this->order    = new \bizuno\order($this->options);
-//$this->payment = new \bizuno\payment($this->options);
+//      $this->payment  = new \bizuno\payment($this->options);
         $this->product  = new \bizuno\product($this->options);
         $this->sales_tax= new \bizuno\sales_tax($this->options);
         $this->shipping = new \bizuno\shipping($this->options);
         // WordPress Actions
-        add_action ( 'admin_menu',                [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
-        add_action ( 'init',                      [ $this, 'ps_init' ] );
-        add_action ( 'rest_api_init',             [ $this, 'ps_register_rest' ] );
-        add_action ( 'woocommerce_init',          [ $this, 'ps_woocommerce_init' ] );
-        add_action ( 'plugins_loaded',            [ $this, 'ps_plugins_loaded' ] );
-        add_action ( 'bizuno_api_image_process',  [ $this->product, 'cron_image' ] );
+        add_action ( 'admin_menu',               [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
+        add_action ( 'init',                     [ $this, 'initializePlugin' ] );
+        add_action ( 'rest_api_init',            [ $this, 'ps_register_rest' ] );
+        add_action ( 'woocommerce_init',         [ $this, 'ps_woocommerce_init' ] );
+        add_action ( 'plugins_loaded',           [ $this, 'ps_plugins_loaded' ] );
+        add_action ( 'bizuno_api_image_process', [ $this->product, 'cron_image' ] );
 
         // WordPress Filters
-        add_filter ( 'mime_types',                [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
+        add_filter ( 'mime_types',               [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
         // WooCommerce hooks
         if ( in_array ( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
             // WooCommerce Actions
@@ -84,7 +74,7 @@ class bizuno_api
             // WooCommerce Filters
             add_filter ( 'woocommerce_tax_classes',                          [ $this->sales_tax,'add_bizuno_tax_class' ] );
             add_filter ( 'woocommerce_tax_class_name',                       [ $this->sales_tax,'bizuno_tax_class_name' ], 10, 2 );
-//add_filter ( 'woocommerce_account_menu_items',                   [ $this->account,  'biz_add_woo_tabs' ], 999 );
+//          add_filter ( 'woocommerce_account_menu_items',                   [ $this->account,  'biz_add_woo_tabs' ], 999 );
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
@@ -93,7 +83,44 @@ class bizuno_api
             add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
         }
     }
-    public function ps_init()
+    
+    /**
+     * Initializes the Bizuno Environment
+     */
+    private function initializeBizuno()
+    {
+        global $msgStack, $db, $cleaner, $io, $wpdb; // , $html5, $portal
+        // Locate the Library
+        if ( !defined('BIZUNO_REPO' ) ) { // if not, then check to see if the library plugin is installed.
+            if ( !in_array ( 'bizuno-wp-lib/bizuno-wp-lib.php', apply_filters( 'active_plugins', get_option ( 'active_plugins' ) ) ) ) {
+                return $this->deactivateBizuno()();
+            }        
+            define( 'BIZUNO_REPO', WP_PLUGIN_DIR . '/bizuno-wp-lib/' );
+        }
+        // Set some bizuno global constants
+        if ( !defined('BIZUNO_BIZID' ) )     { define('BIZUNO_BIZID',    '12345'); } // Bizuno Business ID [for multi-business]
+        if ( !defined('BIZUNO_DATA' ) )      { define('BIZUNO_DATA',     wp_get_upload_dir()['basedir'].'/'); } // Path to user files, cache and backup
+        if ( !defined('BIZUNO_KEY' ) )       { define('BIZUNO_KEY',      '0123456789abcdef'); } // Unique key used for encryption
+        if ( !defined('BIZUNO_DB_PREFIX' ) ) { define('BIZUNO_DB_PREFIX',$wpdb->prefix); } // Database table prefix 
+        if ( !defined('BIZPORTAL' ) )        { define('BIZPORTAL',       ['type'=>'mysql', 'host'=>DB_HOST, 'name'=>DB_NAME, 'user'=>DB_USER, 'pass'=>DB_PASSWORD, 'prefix'=>$wpdb->prefix]); }
+        // URL's
+        if ( !defined('BIZUNO_SRVR' ) )      { define('BIZUNO_SRVR',     admin_url()); }
+        if ( !defined('BIZUNO_SCRIPTS' ) )   { define('BIZUNO_SCRIPTS',  plugins_url().'/bizuno-wp-lib/scripts/');  }
+        if ( !defined('BIZUNO_AJAX' ) )      { define('BIZUNO_AJAX',     admin_url().'admin-ajax.php?action=bizuno_ajax'); } // for ajax requests
+        // Special case for WordPress
+//      if ( !defined('BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true); } // WordPress adds slashes to all input data
+        // Initialize & load Bizuno library
+        require_once ( BIZBOOKS_ROOT . 'bizunoCFG.php' );
+        // Instantiate Bizuno classes
+        $msgStack = new \bizuno\messageStack();
+        $cleaner  = new \bizuno\cleaner();
+        $io       = new \bizuno\io();
+        $db       = new \bizuno\db(BIZPORTAL);
+    }
+    /**
+     * Initializes this plugins environment
+     */
+    private function initializePlugin()
     {
         add_rewrite_endpoint( 'biz-account-wallet',   EP_ROOT | EP_PAGES ); // for WC add wallet endpoint
         register_post_status( 'wc-shipped', [ // Add shipped status for API uploads
