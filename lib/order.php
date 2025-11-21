@@ -195,8 +195,8 @@ class order extends common
     public function apiJournalEntry($order=[])
     {
         $layout = [];
-        bizAutoLoad(BIZBOOKS_ROOT.'controllers/phreebooks/main.php', 'journal');
-        bizAutoLoad(BIZBOOKS_ROOT.'controllers/inventory/functions.php', 'availableQty', 'function');
+        bizAutoLoad(BIZUNO_FS_LIBRARY.'controllers/phreebooks/main.php', 'journal');
+        bizAutoLoad(BIZUNO_FS_LIBRARY.'controllers/inventory/functions.php', 'availableQty', 'function');
         $this->mapPost($order); // map the input to the proper post format to use existing
         msgDebug("\nModified post = ".print_r($_POST, true));
         setUserCache('security', 'j10_mgr', 2);

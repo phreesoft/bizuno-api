@@ -91,31 +91,31 @@ class bizuno_api
     {
         global $msgStack, $db, $cleaner, $io, $wpdb; // , $html5, $portal
         // Locate the Library
-        if ( !defined('BIZUNO_REPO' ) ) { // if not, then check to see if the library plugin is installed.
+        if ( !defined('BIZUNO_FS_LIBRARY' ) ) { // if not, then check to see if the library plugin is installed.
             if ( !in_array ( 'bizuno-wp-lib/bizuno-wp-lib.php', apply_filters( 'active_plugins', get_option ( 'active_plugins' ) ) ) ) {
                 return $this->deactivateBizuno()();
             }        
-            define( 'BIZUNO_REPO', WP_PLUGIN_DIR . '/bizuno-wp-lib/' );
+            define( 'BIZUNO_FS_LIBRARY', WP_PLUGIN_DIR . '/bizuno-wp-lib/' );
         }
         // Set some bizuno global constants
         if ( !defined('BIZUNO_BIZID' ) )     { define('BIZUNO_BIZID',    '12345'); } // Bizuno Business ID [for multi-business]
         if ( !defined('BIZUNO_DATA' ) )      { define('BIZUNO_DATA',     wp_get_upload_dir()['basedir'].'/'); } // Path to user files, cache and backup
         if ( !defined('BIZUNO_KEY' ) )       { define('BIZUNO_KEY',      '0123456789abcdef'); } // Unique key used for encryption
         if ( !defined('BIZUNO_DB_PREFIX' ) ) { define('BIZUNO_DB_PREFIX',$wpdb->prefix); } // Database table prefix 
-        if ( !defined('BIZPORTAL' ) )        { define('BIZPORTAL',       ['type'=>'mysql', 'host'=>DB_HOST, 'name'=>DB_NAME, 'user'=>DB_USER, 'pass'=>DB_PASSWORD, 'prefix'=>$wpdb->prefix]); }
+        if ( !defined('BIZUNO_DB_CREDS' ) )        { define('BIZUNO_DB_CREDS',       ['type'=>'mysql', 'host'=>DB_HOST, 'name'=>DB_NAME, 'user'=>DB_USER, 'pass'=>DB_PASSWORD, 'prefix'=>$wpdb->prefix]); }
         // URL's
-        if ( !defined('BIZUNO_SRVR' ) )      { define('BIZUNO_SRVR',     admin_url()); }
-        if ( !defined('BIZUNO_SCRIPTS' ) )   { define('BIZUNO_SCRIPTS',  plugins_url().'/bizuno-wp-lib/scripts/');  }
-        if ( !defined('BIZUNO_AJAX' ) )      { define('BIZUNO_AJAX',     admin_url().'admin-ajax.php?action=bizuno_ajax'); } // for ajax requests
+        if ( !defined('BIZUNO_URL_PORTAL' ) )      { define('BIZUNO_URL_PORTAL',     admin_url()); }
+        if ( !defined('BIZUNO_URL_SCRIPTS' ) )   { define('BIZUNO_URL_SCRIPTS',  plugins_url().'/bizuno-wp-lib/scripts/');  }
+        if ( !defined('BIZUNO_URL_AJAX' ) )      { define('BIZUNO_URL_AJAX',     admin_url().'admin-ajax.php?action=BIZUNO_URL_AJAX'); } // for ajax requests
         // Special case for WordPress
 //      if ( !defined('BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true); } // WordPress adds slashes to all input data
         // Initialize & load Bizuno library
-        require_once ( BIZBOOKS_ROOT . 'bizunoCFG.php' );
+        require_once ( BIZUNO_FS_LIBRARY . 'bizunoCFG.php' );
         // Instantiate Bizuno classes
         $msgStack = new \bizuno\messageStack();
         $cleaner  = new \bizuno\cleaner();
         $io       = new \bizuno\io();
-        $db       = new \bizuno\db(BIZPORTAL);
+        $db       = new \bizuno\db(BIZUNO_DB_CREDS);
     }
     /**
      * Initializes this plugins environment

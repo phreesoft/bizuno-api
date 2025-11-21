@@ -76,7 +76,7 @@ function setUserCookie($user)
 
 function portalModuleList() {
     $modList = [];
-    portalModuleListScan($modList, 'BIZBOOKS_ROOT/controllers/'); // Core
+    portalModuleListScan($modList, 'BIZUNO_FS_LIBRARY/controllers/'); // Core
     portalModuleListScan($modList, 'BIZUNO_DATA/myExt/controllers/'); // Custom
     msgDebug("\nReturning from portalModuleList with list: ".print_r($modList, true));
     return $modList;
