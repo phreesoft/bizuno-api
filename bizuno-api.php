@@ -15,7 +15,6 @@
 defined( 'ABSPATH' ) || exit;
 
 // Library files for plugin operations
-require ( dirname(__FILE__) . '/lib/model.php' );
 require ( dirname(__FILE__) . '/lib/common.php' );
 require ( dirname(__FILE__) . '/lib/admin.php' );
 //require ( dirname(__FILE__) . '/lib/account.php' ); // need to finish development
@@ -34,6 +33,10 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 
 class bizuno_api
 {
+    private $bizSlug   = 'bizuno';
+    private $bizLib    = "bizuno-wp-library";
+    private $bizLibURL = "https://bizuno.com/downloads/wordpress/plugins/bizuno-wp-library/bizuno-wp-library.latest-stable.zip";
+
     public function __construct()
     {
         register_activation_hook  ( __FILE__ , [ $this, 'activate' ] );
@@ -41,22 +44,22 @@ class bizuno_api
         $this->initializeBizuno();
         $this->admin    = new \bizuno\admin(); // loads/updates the options for the plugin
         $this->options  = $this->admin->options;
-//      $this->account  = new \bizuno\account($this->options);
+//      $this->account  = new \bizuno\account($this->options); // need to finish development
         $this->order    = new \bizuno\order($this->options);
-//      $this->payment  = new \bizuno\payment($this->options);
+//      $this->payment  = new \bizuno\payment($this->options); // need to finish development
         $this->product  = new \bizuno\product($this->options);
         $this->sales_tax= new \bizuno\sales_tax($this->options);
         $this->shipping = new \bizuno\shipping($this->options);
         // WordPress Actions
-        add_action ( 'admin_menu',               [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
-        add_action ( 'init',                     [ $this, 'initializePlugin' ] );
-        add_action ( 'rest_api_init',            [ $this, 'ps_register_rest' ] );
-        add_action ( 'woocommerce_init',         [ $this, 'ps_woocommerce_init' ] );
-        add_action ( 'plugins_loaded',           [ $this, 'ps_plugins_loaded' ] );
-        add_action ( 'bizuno_api_image_process', [ $this->product, 'cron_image' ] );
+        add_action ( 'admin_menu',              [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
+        add_action ( 'init',                    [ $this, 'initializePlugin' ] );
+        add_action ( 'rest_api_init',           [ $this, 'ps_register_rest' ] );
+        add_action ( 'woocommerce_init',        [ $this, 'ps_woocommerce_init' ] );
+        add_action ( 'plugins_loaded',          [ $this, 'ps_plugins_loaded' ] );
+        add_action ( 'bizuno_api_image_process',[ $this->product, 'cron_image' ] );
 
         // WordPress Filters
-        add_filter ( 'mime_types',               [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
+        add_filter ( 'mime_types',              [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
         // WooCommerce hooks
         if ( in_array ( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
             // WooCommerce Actions
@@ -97,19 +100,27 @@ class bizuno_api
             }        
             define( 'BIZUNO_FS_LIBRARY', WP_PLUGIN_DIR . '/bizuno-wp-lib/' );
         }
-        // Set some bizuno global constants
-        if ( !defined('BIZUNO_BIZID' ) )      { define('BIZUNO_BIZID',      '12345'); } // Bizuno Business ID [for multi-business]
-        if ( !defined('BIZUNO_DATA' ) )       { define('BIZUNO_DATA',       wp_get_upload_dir()['basedir'].'/'); } // Path to user files, cache and backup
-        if ( !defined('BIZUNO_KEY' ) )        { define('BIZUNO_KEY',        '0123456789abcdef'); } // Unique key used for encryption
-        if ( !defined('BIZUNO_DB_PREFIX' ) )  { define('BIZUNO_DB_PREFIX',  $wpdb->prefix); } // Database table prefix 
-        if ( !defined('BIZUNO_DB_CREDS' ) )   { define('BIZUNO_DB_CREDS',   ['type'=>'mysql', 'host'=>DB_HOST, 'name'=>DB_NAME, 'user'=>DB_USER, 'pass'=>DB_PASSWORD, 'prefix'=>$wpdb->prefix]); }
-        // URL's
-        if ( !defined('BIZUNO_URL_PORTAL' ) ) { define('BIZUNO_URL_PORTAL', admin_url()); }
-        if ( !defined('BIZUNO_URL_SCRIPTS' ) ){ define('BIZUNO_URL_SCRIPTS',plugins_url().'/bizuno-wp-lib/scripts/');  }
-        if ( !defined('BIZUNO_URL_AJAX' ) )   { define('BIZUNO_URL_AJAX',   admin_url().'admin-ajax.php?action=BIZUNO_URL_AJAX'); } // for ajax requests
+        // Business Specific
+        if ( !defined( 'BIZUNO_BIZID' ) )       { define( 'BIZUNO_BIZID',       '12345' ); } // Bizuno Business ID [for multi-business]
+        if ( !defined( 'BIZUNO_DATA' ) )        { define( 'BIZUNO_DATA',        wp_get_upload_dir()['basedir']."/$this->bizSlug/" ); } // Path to user files, cache and backup
+        if ( !defined( 'BIZUNO_KEY' ) )         { define( 'BIZUNO_KEY',         '0123456789abcdef' ); } // Unique key used for encryption
+        if ( !defined( 'BIZUNO_DB_PREFIX' ) )   { define( 'BIZUNO_DB_PREFIX',   $wpdb->prefix . 'bizuno_' ); } // Database table prefix
+        if ( !defined( 'BIZUNO_DB_CREDS' ) )    { define( 'BIZUNO_DB_CREDS',    ['type'=>'mysql', 'host'=>DB_HOST, 'name'=>DB_NAME, 'user'=>DB_USER, 'pass'=>DB_PASSWORD, 'prefix'=>BIZUNO_DB_PREFIX ] ); }
+        // Platform Specific - File System Paths
+// Since the API only is access via REST, this plugin doesn't set the portal, so disable some constants
+//      if ( !defined( 'BIZUNO_FS_PORTAL' ) )   { define( 'BIZUNO_FS_PORTAL',   plugin_dir_path( __FILE__ ) ); } // file system path to the portal
+        if ( !defined( 'BIZUNO_FS_LIBRARY' ) )  { define( 'BIZUNO_FS_LIBRARY',  WP_PLUGIN_DIR . "/$this->bizLib/" ); }
+        if ( !defined( 'BIZUNO_FS_ASSETS' ) )   { define( 'BIZUNO_FS_ASSETS',   WP_PLUGIN_DIR . "/$this->bizLib/assets/" ); } // contains third party php apps
+        // Platform Specific - URL's
+//      if ( !defined( 'BIZUNO_URL_AJAX' ) )    { define( 'BIZUNO_URL_AJAX',    admin_url(). 'admin-ajax.php?action=bizuno_ajax' ); }
+//      if ( !defined( 'BIZUNO_URL_API' ) )     { define( 'BIZUNO_URL_API',     plugin_dir_url( __FILE__ ) . "portalAPI.php?bizRt=" ); }
+//      if ( !defined( 'BIZUNO_URL_FS' ) )      { define( 'BIZUNO_URL_FS',      plugin_dir_url( __FILE__ ) . "portalAPI.php?bizRt=portal/api/fs&src=" ); }
+//      if ( !defined( 'BIZUNO_URL_PORTAL' ) )  { define( 'BIZUNO_URL_PORTAL',  home_url() . "/$this->bizSlug?" ); } // full url to Bizuno root folder
+//      if ( !defined( 'BIZUNO_URL_SCRIPTS' ) ) { define( 'BIZUNO_URL_SCRIPTS', plugins_url()."/$this->bizLib/scripts/" );  } // contains third party js and css files
         // Special case for WordPress
-//      if ( !defined('BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true); } // WordPress adds slashes to all input data
+        if ( !defined( 'BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true); } // WordPress adds slashes to all input data
         // Initialize & load Bizuno library
+        require_once ( BIZUNO_FS_LIBRARY . 'portal/controller.php' );
         require_once ( BIZUNO_FS_LIBRARY . 'bizunoCFG.php' );
         // Instantiate Bizuno classes
         $msgStack = new \bizuno\messageStack();
@@ -117,10 +128,11 @@ class bizuno_api
         $io       = new \bizuno\io();
         $db       = new \bizuno\db(BIZUNO_DB_CREDS);
     }
+
     /**
      * Initializes this plugins environment
      */
-    private function initializePlugin()
+    public function initializePlugin()
     {
         add_rewrite_endpoint( 'biz-account-wallet',   EP_ROOT | EP_PAGES ); // for WC add wallet endpoint
         register_post_status( 'wc-shipped', [ // Add shipped status for API uploads
