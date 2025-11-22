@@ -5,7 +5,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    PhreeSoft Proprietary
- * @version    6.x Last Update: 2025-10-13
+ * @version    6.x Last Update: 2025-11-22
  * @filesource ISP Wordpress/bizunoCFG.php
  */
 
@@ -28,7 +28,7 @@ define('BIZUNO_PORTAL',  $_SERVER['SERVER_NAME']);
 define('BIZUNO_PATH',   '/var/www/'.BIZUNO_PORTAL.'/web/');
 define('BIZUNO_FS_ASSETS', '/usr/share/bizuno/vendor/');
 // URL's
-define('BIZUNO_URL_PORTAL',    'https://'.BIZUNO_PORTAL.'/');
+define('BIZUNO_URL_PORTAL',    'https://'.BIZUNO_PORTAL);
 define('BIZUNO_URL_SCRIPTS', "https://ww2.bizuno.com/scripts/"); // pulled from a shared server
 
 require_once ( BIZUNO_FS_LIBRARY . 'bizunoCFG.php' ); // Config for current release
