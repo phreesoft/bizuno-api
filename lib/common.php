@@ -48,7 +48,7 @@ class common
     }
     public function client_close()
     {
-        msgDebugWrite();
+//        msgDebugWrite();
     }
     public function rest_open(\WP_REST_Request $request)
     {

@@ -15,20 +15,20 @@
 defined( 'ABSPATH' ) || exit;
 
 // Library files for plugin operations
-require ( dirname(__FILE__) . '/lib/common.php' );
-require ( dirname(__FILE__) . '/lib/admin.php' );
+require_once ( dirname(__FILE__) . '/lib/common.php' );
+require_once ( dirname(__FILE__) . '/lib/admin.php' );
 //require ( dirname(__FILE__) . '/lib/account.php' ); // need to finish development
-require ( dirname(__FILE__) . '/lib/order.php' );
+require_once ( dirname(__FILE__) . '/lib/order.php' );
 //require ( dirname(__FILE__) . '/lib/payment.php' ); // need to finish development
-require ( dirname(__FILE__) . '/lib/product.php' );
-require ( dirname(__FILE__) . '/lib/sales_tax.php' );
-require ( dirname(__FILE__) . '/lib/shipping.php' );
+require_once ( dirname(__FILE__) . '/lib/product.php' );
+require_once ( dirname(__FILE__) . '/lib/sales_tax.php' );
+require_once ( dirname(__FILE__) . '/lib/shipping.php' );
 
 // Load Woocommerce plugins only if WooCommerce is installed and active
 if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
-    require ( dirname( __FILE__ ) . '/plugins/payment-payfabric/payment-payfabric.php' );
-    require ( dirname( __FILE__ ) . '/plugins/payment-purchase-order.php' );
-    require ( dirname( __FILE__ ) . '/plugins/shipping-bizuno.php' );
+    require_once ( dirname( __FILE__ ) . '/plugins/payment-payfabric/payment-payfabric.php' );
+    require_once ( dirname( __FILE__ ) . '/plugins/payment-purchase-order.php' );
+    require_once ( dirname( __FILE__ ) . '/plugins/shipping-bizuno.php' );
 }
 
 class bizuno_api
@@ -63,8 +63,7 @@ class bizuno_api
         // WooCommerce hooks
         if ( in_array ( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
             // WooCommerce Actions
-//          add_action ( 'woocommerce_order_before_calculate_taxes',         [ $this->sales_tax,'apply_bizuno_tax_class' ], 10, 2 );
-            add_action ( 'woocommerce_cart_calculate_fees',                  [ $this->sales_tax,'bizuno_rest_sales_tax' ], 10, 1 );
+//          add_action ( 'woocommerce_cart_calculate_fees',                  [ $this->sales_tax,'bizuno_rest_sales_tax' ], 10, 1 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
             add_action ( 'woocommerce_shop_order_list_table_custom_column',  [ $this->admin,    'bizuno_api_order_column_content_hpos' ], 25, 2 ); // Works with HPOS
             add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,    'bizuno_api_order_preview_action' ] );
@@ -73,11 +72,13 @@ class bizuno_api
             add_action ( 'woocommerce_thankyou',                             [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
             add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'woocommerce_after_checkout_validation',            [ $this->shipping, 'bizuno_validate_order' ], 10 );
-            
+            add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
+
             // WooCommerce Filters
-            add_filter ( 'woocommerce_tax_classes',                          [ $this->sales_tax,'add_bizuno_tax_class' ] );
-            add_filter ( 'woocommerce_tax_class_name',                       [ $this->sales_tax,'bizuno_tax_class_name' ], 10, 2 );
-//          add_filter ( 'woocommerce_account_menu_items',                   [ $this->account,  'biz_add_woo_tabs' ], 999 );
+            add_filter ( 'woocommerce_rate_label',                           [ $this->sales_tax,'bizuno_fix_tax_label' ], 10, 2 );
+            add_filter ( 'woocommerce_matched_rates',                        [ $this->sales_tax,'bizuno_get_rest_tax_rate' ], 10, 3 );
+            add_filter ( 'woocommerce_shipping_tax_class',                   [ $this->shipping, 'force_bizuno_tax_class_for_shipping'], 100, 2 );
+            add_filter ( 'woocommerce_shipping_is_taxable', '__return_true' );
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
@@ -194,21 +195,31 @@ class bizuno_api
         $existing_mimes['webp'] = 'image/webp';
         return $existing_mimes;
     }
-    public static function activate()
+    public function bizuno_write_debug() {
+        // This runs as the VERY LAST thing WordPress does
+        // Right before PHP finishes execution and sends output
+        if ( function_exists("\\bizuno\\msgDebugWrite" ) ) { \bizuno\msgDebugWrite(); }
+    }
+
+    public function activate()
     {
         global $wpdb;
         if ( is_plugin_active( 'woocommerce/woocommerce.php' ) ) { // set all existing orders to downloaded to hide Download button for past orders
             $orders = $wpdb->get_results( "SELECT `ID` FROM `{$wpdb->prefix}posts` WHERE `post_type` LIKE 'shop_order'", ARRAY_A);
             foreach ($orders as $order) {
                 // @TODO - This doesn't work in HPOS mode, need fixin'
-                update_post_meta($order['ID'], 'bizuno_order_exported', 'yes'); }
+                update_post_meta($order['ID'], 'bizuno_order_exported', 'yes');
 //              $wpdb->get_results( "INSERT INTO `{$wpdb->prefix}wc_orders_meta` ... WHERE `meta_key`='bizuno_order_exported'");
+            }
             if (!wp_next_scheduled('bizuno_api_image_process')) { wp_schedule_event(time(), 'hourly', 'bizuno_api_image_process'); }
+            $this->sales_tax->add_bizuno_tax_class();
         }
     }
-    public static function deactivate()
+    public function deactivate()
     {
         if (wp_next_scheduled('bizuno_api_image_process')) { wp_clear_scheduled_hook('bizuno_api_image_process'); }
+        // @TODO - Remove Bizuno Tax class
+        $this->sales_tax->remove_bizuno_tax_class();
     }
 }
 new bizuno_api();
@@ -218,3 +229,10 @@ function bizuno_isp_uninstall() {
     global $wpdb;
     $wpdb->get_results( "DELETE FROM `{$wpdb->prefix}wc_orders_meta` WHERE `meta_key`='bizuno_order_exported'");
 }
+
+add_action( 'wp_footer', function() {
+    if ( is_admin() || ! current_user_can('manage_woocommerce') ) return;
+    if ( WC()->cart && WC()->cart->needs_shipping_address() ) {
+        echo '<!-- Bizuno Tax Hook IS ACTIVE -->';
+    }
+});

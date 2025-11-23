@@ -49,11 +49,23 @@ class shipping extends common
         $this->client_close();
         return $layout['rates'];
     }
+    
     public function add_bizuno_shipping_method( $methods ) { // Add the method to the list of available Methods
         $methods['bizuno_shipping'] = 'WC_Bizuno_Shipping_Method';
         return $methods;
     }
     
+    function force_bizuno_tax_class_for_shipping( $tax_class, $shipping_method ) {
+        // Only override if the product(s) in cart use your custom class
+        foreach ( WC()->cart->get_cart() as $item ) {
+            $product_tax_class = $item['data']->get_tax_class();
+            if ( $product_tax_class === 'bizuno-sales-tax' ) {
+                return 'bizuno-sales-tax'; // ← this forces shipping to use your class
+            }
+        }
+        return $tax_class; // fallback to normal behavior
+    }
+
     public function bizuno_validate_order( $posted )   {
         $packages = WC()->shipping->get_packages();
         $chosen_methods = WC()->session->get( 'chosen_shipping_methods' );
