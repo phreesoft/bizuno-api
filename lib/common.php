@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-11-24
  * @filesource /lib/common.php
  */
 
@@ -67,9 +67,52 @@ class common
         msgDebugWrite();
         return new \WP_REST_Response($output, $status);
     }
-    
+
     /**
-     * THIS NEEDS TO BE MOVED TO THE SHARED cURL which has a different set of request variables and sequences
+     * Retrieves the sales tax rate from PhreeSoft via REST
+     * @return float
+     */
+    public function getSalesTaxRate()
+    {
+        msgDebug("\nEntering getSalesTaxRate");
+        // This is the only place that is guaranteed to run on every tax line
+        $customer = WC()->customer ?: new WC_Customer();
+        $freight  = WC()->cart->get_shipping_total();
+        $total    = WC()->cart->get_cart_contents_total();
+        $postcode = $customer->get_shipping_postcode() ?: $customer->get_billing_postcode();
+        $city     = $customer->get_shipping_city()     ?: $customer->get_billing_city();
+        $state    = $customer->get_shipping_state()    ?: $customer->get_billing_state();
+        $country  = $customer->get_shipping_country()  ?: $customer->get_billing_country();
+
+        msgDebug("\npostcode = $postcode and country = $country");
+        if ( empty( $postcode ) || $country !== 'US' ) { return 0.0; }
+        
+        $zip = substr( preg_replace('/[^0-9]/', '', $postcode), 0, 5 );
+        // Cache per ZIP (24h)
+        $cache_key = 'bizuno_tax_' . $zip;
+        $cached    = get_transient( $cache_key );
+        if ( false !== $cached ) { 
+            $rate = $cached; // this is the rate as decimal (8.25, not 0.0825)
+        } else {
+            $args = ['freight'=>$freight, 'total'=>$total, 'city'=>$city, 'state'=>$state, 'zip'=>$postcode, 'country'=>$country];
+            $this->client_open();
+            if (empty($args['zip'])) { return; }
+            $isTaxable = in_array($args['state'], $this->options['tax_nexus']) ? true : false;
+            if (!$isTaxable) { return; }
+            msgDebug("\nCalling API with args = ".print_r($args, true));
+            $resp = json_decode($this->cURL('post', $args, 'getSalesTax'), true);
+            msgDebug("\nBizuno-API getSalesTax received back from REST: ".print_r($resp, true));
+            // error check response
+
+            $this->client_close();
+            $rate = empty($resp['rate']) ? 0 : $resp['rate'];
+        }
+        set_transient( $cache_key, $rate, DAY_IN_SECONDS );
+        return $rate;
+    }
+
+    /**
+     * THIS NEEDS TO BE MOVED TO THE SHARED cURL ($io) which has a different set of request variables and sequences
      * @param type $type
      * @param type $data
      * @param type $endPoint

@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-10-06
+ * @version    7.x Last Update: 2025-11-24
  * @filesource /lib/product.php
  */
 
@@ -157,10 +157,12 @@ class product extends common
 
     private function getProduct($post)
     {
+        global $wpdb;
         $this->productID = \wc_get_product_id_by_sku($post['SKU']);
         msgDebug("\nEntering getProduct, fetched product ID = $this->productID");
         if (empty($this->productID)) { // The new way returns zero for products uploaded in early versions of the API, try to old way, just in case
-            $this->productID = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($post['SKU'])."'", true);
+            $this->productID = $wpdb->get_var("SELECT post_id FROM $wpdb->postmeta WHERE `meta_key` = '_sku' AND `meta_value`='".addslashes($post['SKU'])."'");
+//            $this->productID = dbGetValue(SOME_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($post['SKU'])."'", true);
             msgDebug("\nTried the old way, product ID is now = $this->productID");
         }
         $productType = !empty($post['Type']) ? strtolower($post['Type']) : 'si'; // allows change of product type on the fly
@@ -194,7 +196,7 @@ class product extends common
 
     private function productRelated($post)
     {
-//      global $wcProduct;
+        global $wpdb; // $wcProduct;
         msgDebug("\nEntering productRelated");
         // This needs to be updated to the new method, probably part of WC_Product_Simple
         //
@@ -203,14 +205,15 @@ class product extends common
         if (!empty($post['invAccessory']) && is_array($post['invAccessory'])) {
             $post['related'] = [];
             foreach ($post['invAccessory'] as $related) {
-                $product_id = dbGetValue(PORTAL_DB_PREFIX.'postmeta', 'post_id', "`meta_key` LIKE '_sku' AND `meta_value`='{$related}'", true);
+                $product_id = $wpdb->get_var("SELECT post_id FROM $wpdb->postmeta WHERE `meta_key` LIKE '_sku' AND `meta_value`='{$related}'");
+//              $product_id = dbGetValue(SOME_DB_PREFIX.'postmeta', 'post_id', "`meta_key` LIKE '_sku' AND `meta_value`='{$related}'", true);
                 if ($product_id !== false) { $post['related'][] = $product_id; }
             }
             msgDebug("related items found:".print_r($post['related'], true));
         }
         if (isset($post['related'])) {
-//            dbGetResult("DELETE FROM `". PORTAL_DB_PREFIX . "postmeta` WHERE post_id = '". (int)$product_id . "' AND meta_key = '_crosssell_ids';");
-//            dbGetResult("INSERT INTO " . PORTAL_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $post['related'] . "';");
+//          dbGetResult("DELETE FROM `". SOME_DB_PREFIX . "postmeta` WHERE post_id = '". (int)$product_id . "' AND meta_key = '_crosssell_ids';");
+//          dbGetResult("INSERT INTO " . SOME_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $post['related'] . "';");
         }
     }
 
@@ -303,29 +306,34 @@ class product extends common
      */
     private function productAttributes($post, $product_id)
     {
-//      global $wcProduct; // new way
+        global $wpdb; // $wcProduct; // new way
         msgDebug("\nEntering productAttributes");
         if (empty($post['Attributes'])) { return; }
-        $result      = dbGetMulti(PORTAL_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
-        $pa_attr_ids = [];
+        $result     = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $wpdb->term_taxonomy WHERE taxonomy LIKE 'pa_%'", 'active' ), ARRAY_A );
+//      $result     = dbGetMulti(SOME_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
+        $pa_attr_ids= [];
         foreach ($result as $row) { $pa_attr_ids[] = $row['term_taxonomy_id']; }
         if (sizeof($pa_attr_ids)) { // clear out the current attributes
-            dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."term_relationships WHERE object_id=$product_id AND term_taxonomy_id IN (".implode(',',$pa_attr_ids).")");
+            $wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->term_relationships WHERE object_id = %d AND term_taxonomy_id IN (" . implode(',', array_fill(0, count($pa_attr_ids), '%d')) . ")",
+                array_merge( [ (int)$product_id ], array_map('intval', $pa_attr_ids) ) ) );
+//          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."term_relationships WHERE object_id=$product_id AND term_taxonomy_id IN (".implode(',',$pa_attr_ids).")");
         }
-        $productAttr = [];
+        $productAttr= [];
         foreach ($post['Attributes'] as $idx => $row) {
             if (empty($row['title']) || empty($row['index'])) { continue; }
             $attrSlug= $this->getPermaLink($row['index']);
 //          $attrSlug= $this->getPermaLink($post['AttributeCategory'].'_'.strtolower($row['index'])); // creates a lot of attributes and causes filtering issues
-            $exists  = dbGetValue(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
+            $exists  = $wpdb->get_var("SELECT attribute_name FROM {$wpdb->prefix}woocommerce_attribute_taxonomies WHERE attribute_name='$attrSlug'");
+//          $exists  = dbGetValue(SOME_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
             if (!$exists) {
                 $newAttr = [
-                    'attribute_name'   => $attrSlug,
-                    'attribute_label'  => $row['title'],
-                    'attribute_type'   => 'text',
-                    'attribute_orderby'=> 'name_num',
-                    'attribute_public' => 0];
-                dbWrite(PORTAL_DB_PREFIX.'woocommerce_attribute_taxonomies', $newAttr);
+                    'attribute_name'     => sanitize_title( $attrSlug ),
+                    'attribute_label'    => sanitize_text_field( $row['title'] ),
+                    'attribute_type'     => 'text',
+                    'attribute_orderby'  => 'name_num',
+                    'attribute_public'   => 0];
+                $wpdb->insert( $wpdb->prefix . 'woocommerce_attribute_taxonomies', $newAttr, [ '%s', '%s', '%s', '%s', '%d'] );
+//                dbWrite(SOME_DB_PREFIX.'woocommerce_attribute_taxonomies', $newAttr);
             }
             $productAttr["pa_$attrSlug"] = ['name'=>$row['title'],'value'=>$row['value'],'position'=>$idx,'is_visible'=>1,'is_variation'=>0,'is_taxonomy'=>0];
             // Update postmeta with attribute key => value pair for searching...
@@ -513,18 +521,22 @@ class product extends common
      */
     private function setImageCleaner($product_id)
     {
+        global $wpdb;
         msgDebug("\nEntering setImageCleaner with product_id = $product_id");
         // first check thumbnails for multiple records, should only be one
-        $metaIDs = dbGetMulti(PORTAL_DB_PREFIX.'postmeta', "post_id=$product_id AND meta_key='_thumbnail_id'");
+        $metaIDs = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $wpdb->postmeta WHERE post_id=$product_id AND meta_key='_thumbnail_id'", 'active' ), ARRAY_A );
+//      $metaIDs = dbGetMulti(SOME_DB_PREFIX.'postmeta', "post_id=$product_id AND meta_key='_thumbnail_id'");
         if (sizeof($metaIDs) > 1) {
             for ($i=1; $i<sizeof($metaIDs); $i++) { // earlier bug where multiple thumbnails were generated
                 msgDebug("\nDeleting duplicate thumbnail with ID = ".print_r($metaIDs[$i], true));
-                dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE meta_id={$metaIDs[$i]['meta_id']}");
+                $wpdb->delete( $wpdb->postmeta, [ 'meta_id' => (int) $metaIDs[$i]['meta_id'] ], [ '%d' ] );
+//              dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE meta_id={$metaIDs[$i]['meta_id']}");
                 \wp_delete_post( $metaIDs[$i]['post_id'], true );
             }
         }
         // If the same image is used for multiple products, then multiple media posts were generated, clean these up and start over.
-        $dupImages  = dbGetMulti(PORTAL_DB_PREFIX.'posts', "post_parent<>0 AND post_parent=$product_id AND post_type='attachment'", 'ID', ['ID']);
+        $dupImages = $wpdb->get_results( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_parent<>0 AND post_parent=$product_id AND post_type='attachment' ORDER BY ID", 'active' ), ARRAY_A );
+//      $dupImages = dbGetMulti(SOME_DB_PREFIX.'posts', "post_parent<>0 AND post_parent=$product_id AND post_type='attachment'", 'ID', ['ID']);
         foreach ($dupImages as $imageID) {
             msgDebug("\nDeleting duplicate images with ID = ".print_r($imageID, true));
             \wp_delete_post( $imageID['ID'], true );
@@ -538,7 +550,9 @@ class product extends common
      * @param integer $replace
      * @return type
      */
-    private function setImage($props, $product_id, $replace=false) {
+    private function setImage($props, $product_id, $replace=false)
+    {
+        global $wpdb;
         msgDebug("\nEntering setImage with sizeof image = ".strlen($props['data']));
         $upload_folder= wp_upload_dir();
         $image_dir    = $upload_folder['basedir']."/{$props['path']}";
@@ -546,18 +560,23 @@ class product extends common
         $guid         = $props['path'] . $props['name'];
         msgDebug("\nLooking for all images at: $guid");
         // BOF - Clean out duplicate image posts pointing to the same file
-        $postIDs = dbGetMulti(PORTAL_DB_PREFIX.'postmeta', "meta_key='_wp_attached_file' AND meta_value='$guid'", 'post_id', ['post_id']);
+        $postIDs = $wpdb->get_results( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_wp_attached_file' AND meta_value='$guid' ORDER BY post_id", 'active' ), ARRAY_A );
+//      $postIDs = dbGetMulti(SOME_DB_PREFIX.'postmeta', "meta_key='_wp_attached_file' AND meta_value='$guid'", 'post_id', ['post_id']);
         msgDebug("\nRead the following ID's for this image path: ".print_r($postIDs, true));
         for ($i=1; $i<sizeof($postIDs); $i++) { // earlier bug where multiple thumbnails were generated pointing to same file location
             msgDebug("\nDeleting duplicate posts with same path and ID = {$postIDs[$i]['post_id']}");
-            dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."posts WHERE ID={$postIDs[$i]['post_id']}");
-            dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE post_id={$postIDs[$i]['post_id']}");
-//            \wp_delete_post( $postIDs[$i]['post_id'], true ); // seemed to leave some orphan meta data
+            \wp_delete_post( (int) $postIDs[$i]['post_id'], true );
+//          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."posts WHERE ID={$postIDs[$i]['post_id']}");
+//          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE post_id={$postIDs[$i]['post_id']}");
         }
         if (sizeof($postIDs)>0) {
-            $postExists = dbGetValue(PORTAL_DB_PREFIX.'posts', 'ID', "ID={$postIDs[0]['post_id']}");
+            $postExists = $wpdb->get_var("SELECT ID FROM $wpdb->posts WHERE ID={$postIDs[0]['post_id']}");
+//          $postExists = dbGetValue(SOME_DB_PREFIX.'posts', 'ID', "ID={$postIDs[0]['post_id']}");
             msgDebug("\nRead to see if the record exists: ".print_r($postExists, true));
-            if (empty($postExists)) { dbGetResult("DELETE FROM ".PORTAL_DB_PREFIX."postmeta WHERE post_id={$postIDs[0]['post_id']}"); }
+            if (empty($postExists)) {
+                $wpdb->delete( $wpdb->postmeta, [ 'post_id' => (int) $postIDs[0]['post_id'] ], [ '%d' ] );
+//              dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE post_id={$postIDs[0]['post_id']}");
+            }
             $imgID = !empty($postExists) ? $postIDs[0]['post_id'] :  0;
         } else {
             $imgID = 0;

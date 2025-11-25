@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-11-24
  * @filesource /lib/shipping.php
  */
 
@@ -54,17 +54,6 @@ class shipping extends common
         $methods['bizuno_shipping'] = 'WC_Bizuno_Shipping_Method';
         return $methods;
     }
-    
-    function force_bizuno_tax_class_for_shipping( $tax_class, $shipping_method ) {
-        // Only override if the product(s) in cart use your custom class
-        foreach ( WC()->cart->get_cart() as $item ) {
-            $product_tax_class = $item['data']->get_tax_class();
-            if ( $product_tax_class === 'bizuno-sales-tax' ) {
-                return 'bizuno-sales-tax'; // ← this forces shipping to use your class
-            }
-        }
-        return $tax_class; // fallback to normal behavior
-    }
 
     public function bizuno_validate_order( $posted )   {
         $packages = WC()->shipping->get_packages();
@@ -89,5 +78,22 @@ class shipping extends common
                 }
             }
         }
+    }
+    
+    public function bizuno_override_shipping_tax_class( $rates, $package )
+    {
+        msgDebug("\nEntering bizuno_override_shipping_tax_class with rates = ".print_r($rates, true));
+        if ( empty( $rates ) ) { return $rates; }
+
+        $taxRate = $this->getSalesTaxRate();
+        msgDebug("\nWorking with tax rate = $taxRate");
+        foreach ( $rates as $rate_key => $rate ) {
+            $rate_cost = (float) $rate->get_cost();
+            msgDebug("\nRate cost = $rate_cost");
+            $this_rate_tax = wc_format_decimal ( $rate_cost * $taxRate );
+            $rate->set_taxes( [ '1' => $this_rate_tax ] );
+        }
+        msgDebug("\nUpdated rates = ".print_r($rates, true));
+        return $rates;
     }
 }

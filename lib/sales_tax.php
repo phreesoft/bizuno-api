@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2025-11-24
  * @filesource /lib/sales_tax.php
  */
 
@@ -69,49 +69,17 @@ class sales_tax extends common
 
     // 1. Completely bypass WooCommerce's internal tax lookup for your class
     function bizuno_get_rest_tax_rate( $matched_rates, $tax_class ) {
-        msgDebug("\nEntering bizuno_rest_sales_tax.");
+        msgDebug("\nEntering bizuno_get_rest_tax_rate.");
 //        if ( $tax_class !== 'bizuno-sales-tax' ) { return $rate; } // let normal rates work
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) { return; }
         if ( empty($this->options['tax_enable'] ) )    { return; }
 
-        // This is the only place that is guaranteed to run on every tax line
-        $customer = WC()->customer ?: new WC_Customer();
-        $freight  = WC()->cart->get_shipping_total();
-        $total    = WC()->cart->get_cart_contents_total();
-        $postcode = $customer->get_shipping_postcode() ?: $customer->get_billing_postcode();
-        $city     = $customer->get_shipping_city()     ?: $customer->get_billing_city();
-        $state    = $customer->get_shipping_state()    ?: $customer->get_billing_state();
-        $country  = $customer->get_shipping_country()  ?: $customer->get_billing_country();
-
-        msgDebug("\npostcode = $postcode and country = $country");
-        if ( empty( $postcode ) || $country !== 'US' ) { return 0.0; }
-msgTrap();
-        $zip = substr( preg_replace('/[^0-9]/', '', $postcode), 0, 5 );
-        // Cache per ZIP (24h)
-        $cache_key = 'bizuno_tax_' . $zip;
-        $cached    = get_transient( $cache_key );
-        if ( false !== $cached ) { 
-            $rate = $cached; // this is the rate as decimal (8.25, not 0.0825)
-        } else {
-            $args = ['freight'=>$freight, 'total'=>$total, 'city'=>$city, 'state'=>$state, 'zip'=>$postcode, 'country'=>$country];
-            $this->client_open();
-            if (empty($args['zip'])) { return; }
-            $isTaxable = in_array($args['state'], $this->options['tax_nexus']) ? true : false;
-            if (!$isTaxable) { return; }
-            msgDebug("\nCalling API with args = ".print_r($args, true));
-            $resp = json_decode($this->cURL('post', $args, 'getSalesTax'), true);
-            msgDebug("\nBizuno-API getSalesTax received back from REST: ".print_r($resp, true));
-            // error check response
-
-            $this->client_close();
-            $rate = empty($resp['rate']) ? 0 : $resp['rate'];
-        }
-        $output = [ 1 => [  // Integer key: Arbitrary rate ID (use 1 for single rate)
+        $rate  = $this->getSalesTaxRate();
+        $output= [ 1 => [  // Integer key: Arbitrary rate ID (use 1 for single rate)
             'rate'     => $rate * 100,     // Float: 8.25 (not 0.0825)
             'label'    => 'Bizuno Sales Tax',
             'shipping' => in_array($state, $this->ShipTaxSt) ? 'yes' : 'no',
             'compound' => 'no' ] ];
-        set_transient( $cache_key, $rate, DAY_IN_SECONDS );
         msgDebug("\nReturning with rate array = ".print_r($output, true));
         return $output;
 }
@@ -128,7 +96,7 @@ function bizuno_fix_tax_label( $label, $rate_id ) {
 /*
  * This is VERY VERY slow. 
  */
-    public function bizuno_rest_sales_tax( $cart )
+/*    public function bizuno_rest_sales_tax( $cart )
     {
         msgDebug("\nEntering bizuno_rest_sales_tax.");
         if ( is_admin() && ! defined( 'DOING_AJAX' ) ) { return; }
@@ -151,5 +119,5 @@ function bizuno_fix_tax_label( $label, $rate_id ) {
         
         $cart->add_fee( __( 'Sales Tax', 'bizuno-api' ), $resp['sales_tax'], false );
         $this->client_close();
-    }
+    } */
 }

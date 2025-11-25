@@ -63,7 +63,6 @@ class bizuno_api
         // WooCommerce hooks
         if ( in_array ( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
             // WooCommerce Actions
-//          add_action ( 'woocommerce_cart_calculate_fees',                  [ $this->sales_tax,'bizuno_rest_sales_tax' ], 10, 1 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
             add_action ( 'woocommerce_shop_order_list_table_custom_column',  [ $this->admin,    'bizuno_api_order_column_content_hpos' ], 25, 2 ); // Works with HPOS
             add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,    'bizuno_api_order_preview_action' ] );
@@ -77,7 +76,7 @@ class bizuno_api
             // WooCommerce Filters
             add_filter ( 'woocommerce_rate_label',                           [ $this->sales_tax,'bizuno_fix_tax_label' ], 10, 2 );
             add_filter ( 'woocommerce_matched_rates',                        [ $this->sales_tax,'bizuno_get_rest_tax_rate' ], 10, 3 );
-            add_filter ( 'woocommerce_shipping_tax_class',                   [ $this->shipping, 'force_bizuno_tax_class_for_shipping'], 100, 2 );
+            add_filter ( 'woocommerce_package_rates',                        [ $this->shipping, 'bizuno_override_shipping_tax_class' ], 20, 2 );
             add_filter ( 'woocommerce_shipping_is_taxable', '__return_true' );
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
