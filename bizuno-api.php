@@ -111,12 +111,6 @@ class bizuno_api
 //      if ( !defined( 'BIZUNO_FS_PORTAL' ) )   { define( 'BIZUNO_FS_PORTAL',   plugin_dir_path( __FILE__ ) ); } // file system path to the portal
         if ( !defined( 'BIZUNO_FS_LIBRARY' ) )  { define( 'BIZUNO_FS_LIBRARY',  WP_PLUGIN_DIR . "/$this->bizLib/" ); }
         if ( !defined( 'BIZUNO_FS_ASSETS' ) )   { define( 'BIZUNO_FS_ASSETS',   WP_PLUGIN_DIR . "/$this->bizLib/assets/" ); } // contains third party php apps
-        // Platform Specific - URL's
-//      if ( !defined( 'BIZUNO_URL_AJAX' ) )    { define( 'BIZUNO_URL_AJAX',    admin_url(). 'admin-ajax.php?action=bizuno_ajax' ); }
-//      if ( !defined( 'BIZUNO_URL_API' ) )     { define( 'BIZUNO_URL_API',     plugin_dir_url( __FILE__ ) . "portalAPI.php?bizRt=" ); }
-//      if ( !defined( 'BIZUNO_URL_FS' ) )      { define( 'BIZUNO_URL_FS',      plugin_dir_url( __FILE__ ) . "portalAPI.php?bizRt=portal/api/fs&src=" ); }
-//      if ( !defined( 'BIZUNO_URL_PORTAL' ) )  { define( 'BIZUNO_URL_PORTAL',  home_url() . "/$this->bizSlug?" ); } // full url to Bizuno root folder
-//      if ( !defined( 'BIZUNO_URL_SCRIPTS' ) ) { define( 'BIZUNO_URL_SCRIPTS', plugins_url()."/$this->bizLib/scripts/" );  } // contains third party js and css files
         // Special case for WordPress
         if ( !defined( 'BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true); } // WordPress adds slashes to all input data
         // Initialize & load Bizuno library
