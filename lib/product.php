@@ -841,10 +841,108 @@ class product extends common
         return json_encode($value) == json_encode($current) ? true : false;
     }
 
-    /**
+public function productRefresh($items = [], $verbose = true)
+{
+    global $wpdb;
+
+    if (empty($items)) {
+        return;
+    }
+
+    msgDebug("\nEntering productRefresh with " . count($items) . " items from Bizuno");
+
+    $missingSKUs = [];
+    $updated     = 0;
+    $skipped     = 0;
+
+    // Pre-load all products by SKU in one query (HUGE performance win)
+    $skus = array_filter(array_column($items, 'SKU')); // clean empty SKUs
+    if (empty($skus)) return;
+
+    $placeholders = implode(',', array_fill(0, count($skus), '%s'));
+    $sql = "SELECT meta_value AS sku, post_id 
+            FROM $wpdb->postmeta 
+            WHERE meta_key = '_sku' 
+              AND meta_value IN ($placeholders)";
+
+    $rows = $wpdb->get_results($wpdb->prepare($sql, $skus), OBJECT_K); // key = SKU
+
+    foreach ($items as $item) {
+        $sku = trim($item['SKU'] ?? '');
+        if ($sku === '') continue;
+
+        // Fast lookup from pre-loaded array
+        if (!isset($rows[$sku])) {
+            $missingSKUs[] = $sku;
+            continue;
+        }
+
+        $product_id = $rows[$sku]->post_id;
+        $product    = wc_get_product($product_id);
+
+        if (!$product) {
+            $missingSKUs[] = $sku;
+            continue;
+        }
+
+        // --- Clean incoming data ---
+        $priceReg  = !empty($item['RegularPrice']) ? clean($item['RegularPrice'], 'currency') : null;
+        $priceSale = !empty($item['SalePrice'])    ? clean($item['SalePrice'],    'currency') : null;
+        $price     = $priceReg ?? (!empty($item['Price']) ? clean($item['Price'], 'currency') : null);
+
+        // If no regular price, fall back to current price logic
+        if ($priceReg === null && $price !== null) {
+            $priceReg = $price;
+        }
+
+        $stock = isset($item['QtyStock']) && $item['QtyStock'] !== '' 
+            ? (int)$item['QtyStock'] 
+            : null;
+
+        $weight = clean($item['Weight'] ?? 0, 'float');
+
+        $data = [
+            'price'     => $price,           // current/active price
+            'priceReg'  => $priceReg,        // regular price
+            'priceSale' => $priceSale,       // sale price (or null = no sale)
+            'stock'     => $stock,           // int or null = unlimited
+            'weight'    => $weight ?? 0,
+        ];
+
+        msgDebug("\nProcessing SKU: $sku (ID: {$product->get_id()})");
+
+        // Skip update if nothing changed
+        if ($this->quickNoDiff($product, $data)) {
+            msgDebug("No changes detected for SKU $sku - skipping save");
+            $skipped++;
+            // Still process variations even if main product didn't change
+        } else {
+            $this->productQuickUpdate($product, $data);
+            $updated++;
+            msgDebug("Updated product ID {$product->get_id()} (SKU: $sku)");
+        }
+
+        // Handle pricing variations (tiered pricing, etc.)
+        if (!empty($item['PriceVariations'])) {
+            msgDebug("Applying PriceVariations for SKU: $sku");
+            $this->priceVariations($product, $item['PriceVariations']);
+        }
+    }
+
+    // Summary
+    if ($verbose) {
+        msgAdd("Bizuno sync complete: $updated updated, $skipped unchanged" . 
+               (!empty($missingSKUs) ? ", " . count($missingSKUs) . " SKUs not found" : ""));
+        
+        if (!empty($missingSKUs)) {
+            msgAdd("Missing in WooCommerce: " . implode(', ', $missingSKUs));
+        }
+    }
+}
+/**
      * Refreshes a block of products in the WooCommerce database
      */
-    public function productRefresh($items=[], $verbose=true)
+/*    public function productRefresh($items=[], $verbose=true)
     {
         global $wpdb;
         msgDebug("\nEntering productRefresh with products = ".print_r($items, true));
@@ -877,8 +975,45 @@ class product extends common
         if (!empty($missingSKUs) && $verbose) {
             msgAdd("The following SKUs are not in the cart yet you say they should be there: ".implode(', ', $missingSKUs));
         }
+    } */
+
+private function quickNoDiff($product, $data)
+{
+    $current = [
+        'price'     => $product->get_price('edit') !== '' ? (float)$product->get_price('edit') : '',
+        'priceReg'  => $product->get_regular_price('edit') !== '' ? (float)$product->get_regular_price('edit') : '',
+        'priceSale' => $product->get_sale_price('edit') !== '' ? (float)$product->get_sale_price('edit') : '',
+        'weight'    => $product->get_weight('edit') !== '' ? (float)$product->get_weight('edit') : 0,
+        'stock'     => $this->normalizeStock($product),
+    ];
+
+    $incoming = [
+        'price'     => $data['price']     !== null && $data['price']     !== '' ? (float)$data['price']     : '',
+        'priceReg'  => $data['priceReg']  !== null && $data['priceReg']  !== '' ? (float)$data['priceReg']  : '',
+        'priceSale' => $data['priceSale'] !== null && $data['priceSale'] !== '' ? (float)$data['priceSale'] : '',
+        'weight'    => (float)($data['weight'] ?? 0),
+        'stock'     => $data['stock'] ?? null,
+    ];
+
+    // Normalize incoming stock: null or empty = unlimited
+    if ($incoming['stock'] === null || $incoming['stock'] === '') {
+        $incoming['stock'] = 999999;
     }
 
+    msgDebug("\nquickNoDiff comparison:\nCurrent: " . print_r($current, true) . "\nIncoming: " . print_r($incoming, true));
+
+    return $current === $incoming;
+}
+
+private function normalizeStock($product)
+{
+    if (!$product->get_manage_stock()) {
+        return 999999; // unlimited
+    }
+    $qty = $product->get_stock_quantity('edit');
+    return $qty === null ? 999999 : (int)$qty;
+}
+/*
     private function quickNoDiff($product, $data)
     {
         unset($data['priceReg']);
@@ -892,9 +1027,9 @@ class product extends common
         $noDiffData = empty(array_diff_assoc($data, $current)) ? true : false;
         msgDebug("\narray diff = ".print_r(array_diff_assoc($data, $current), true));
         return $noDiffData;
-    }
+    } */
     
-    private function byItemNoDiff($product, $byItem)
+/*    private function byItemNoDiff($product, $byItem)
     {
         msgDebug("\nEntering byItemNoDiff with byItem = ".print_r($byItem, true));
         if (empty($byItem)) { return true; }
@@ -910,8 +1045,103 @@ class product extends common
             \update_post_meta( $product->get_id(), 'bizSellQtys', $tempByItem);
         }
         return $noDiffItem;
-    }
+    } */
     
+private function productQuickUpdate($product, $data)
+{
+    $product_id = $product->get_id();
+    $needs_save = false; // Only call $product->save() if we touch something that requires it
+
+    // 1. Regular Price
+    $current_reg = $product->get_regular_price('edit');
+    $new_reg     = $data['priceReg'] !== null && $data['priceReg'] !== '' ? $data['priceReg'] : '';
+
+    if ($this->notEqual($current_reg, $new_reg)) {
+        update_post_meta($product_id, '_regular_price', $new_reg);
+        update_post_meta($product_id, '_price',        $new_reg); // temporary fallback
+        $needs_save = true;
+    }
+
+    // 2. Sale Price
+    $current_sale = $product->get_sale_price('edit');
+    $new_sale     = $data['priceSale'] !== null && $data['priceSale'] !== '' ? $data['priceSale'] : '';
+
+    if ($this->notEqual($current_sale, $new_sale)) {
+        if ($new_sale === '' || $new_sale === null) {
+            delete_post_meta($product_id, '_sale_price');
+        } else {
+            update_post_meta($product_id, '_sale_price', $new_sale);
+        }
+        $needs_save = true;
+    }
+
+    // 3. Active Price (only if sale is empty or sale > regular)
+    if ($needs_save) {
+        $active_price = (!empty($new_sale) && $new_sale < $new_reg) ? $new_sale : $new_reg;
+        update_post_meta($product_id, '_price', $active_price);
+    }
+
+    // 4. Stock Quantity
+    $manage_stock = $product->get_manage_stock();
+    $new_stock    = $data['stock'] ?? null;
+
+    if ($manage_stock) {
+        $current_stock = $product->get_stock_quantity('edit');
+        // Normalize null = unlimited
+        $current_stock_norm = $current_stock === null ? 999999 : (int)$current_stock;
+        $new_stock_norm     = $new_stock === null ? 999999 : (int)$new_stock;
+
+        if ($current_stock_norm !== $new_stock_norm) {
+            if ($new_stock === null) {
+                delete_post_meta($product_id, '_stock');
+            } else {
+                update_post_meta($product_id, '_stock', $new_stock);
+            }
+            update_post_meta($product_id, '_manage_stock', 'yes');
+            update_post_meta($product_id, '_stock_status', $new_stock > 0 ? 'instock' : 'outofstock');
+            $needs_save = true;
+        }
+    } else {
+        // If Bizuno sends a real stock number, turn on stock management
+        if ($new_stock !== null && $new_stock !== '') {
+            update_post_meta($product_id, '_manage_stock', 'yes');
+            update_post_meta($product_id, '_stock', $new_stock);
+            update_post_meta($product_id, '_stock_status', $new_stock > 0 ? 'instock' : 'outofstock');
+            $needs_save = true;
+        }
+    }
+
+    // 5. Weight
+    $current_weight = $product->get_weight('edit');
+    $new_weight     = $data['weight'] ?? 0;
+
+    if ($this->notEqual($current_weight, $new_weight)) {
+        if ($new_weight == 0) {
+            delete_post_meta($product_id, '_weight');
+        } else {
+            update_post_meta($product_id, '_weight', $new_weight);
+        }
+        $needs_save = true;
+    }
+
+    // Final save – only once, and only if needed
+    if ($needs_save) {
+        // This is still required for object cache, search index, and some hooks
+        $product->save();
+        msgDebug("Full save triggered for product ID $product_id");
+    } else {
+        msgDebug("All updates done via direct meta – no save() needed for ID $product_id");
+    }
+}
+
+// Helper to compare floats/strings safely
+private function notEqual($a, $b)
+{
+    if ($a === $b) return false;
+    return (float)$a != (float)$b;
+}
+
+/*
     private function productQuickUpdate($product, $data=[])
     {
         msgDebug("\nEntering productQuickUpdate with data = ".print_r($data, true));
@@ -928,7 +1158,7 @@ class product extends common
         msgDebug("\nSaving product.");
         $product->save(); // Save to database and sync
         msgDebug("\nread back price = ".$product->get_price());
-    }
+    } */
 
     /**
      * This method syncs the products flagged in Bizuno to be listed and the actual listed products.
