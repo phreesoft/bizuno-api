@@ -34,8 +34,8 @@ if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', g
 class bizuno_api
 {
     private $bizSlug   = 'bizuno';
-    private $bizLib    = "bizuno-wp-library";
-    private $bizLibURL = "https://bizuno.com/downloads/wordpress/plugins/bizuno-wp-library/bizuno-wp-library.latest-stable.zip";
+    private $bizLib    = "bizuno-wp";
+    private $bizLibURL = "https://bizuno.com/downloads/latest/bizuno-wp.zip";
 
     public function __construct()
     {
@@ -63,6 +63,10 @@ class bizuno_api
         // WooCommerce hooks
         if ( in_array ( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
             // WooCommerce Actions
+//add_action('woocommerce_before_add_to_cart_button', [ $this->order,    'bizuno_bulk_pack_note']);
+            add_action('woocommerce_before_add_to_cart_form',                [ $this->product,  'bizuno_single_product_summary'], 10);
+//          add_action ( 'woocommerce_single_product_summary',               [ $this->product,  'bizuno_single_product_summary'], 25);
+            add_action ( 'woocommerce_before_calculate_totals',              [ $this->order,    'bizuno_before_calculate_totals' ], 9999 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
             add_action ( 'woocommerce_shop_order_list_table_custom_column',  [ $this->admin,    'bizuno_api_order_column_content_hpos' ], 25, 2 ); // Works with HPOS
             add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,    'bizuno_api_order_preview_action' ] );
@@ -74,6 +78,10 @@ class bizuno_api
             add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
 
             // WooCommerce Filters
+add_filter('woocommerce_quantity_input_args', [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
+add_filter('woocommerce_add_to_cart_validation', [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
+
+
             add_filter ( 'woocommerce_rate_label',                           [ $this->sales_tax,'bizuno_fix_tax_label' ], 10, 2 );
             add_filter ( 'woocommerce_matched_rates',                        [ $this->sales_tax,'bizuno_get_rest_tax_rate' ], 10, 3 );
             add_filter ( 'woocommerce_package_rates',                        [ $this->shipping, 'bizuno_override_shipping_tax_class' ], 20, 2 );
@@ -86,7 +94,7 @@ class bizuno_api
             add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
         }
     }
-    
+
     /**
      * Initializes the Bizuno Environment
      */
@@ -153,10 +161,10 @@ class bizuno_api
     public function ps_register_rest()
     {
         if ( in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) { // From Bizuno -> WordPress (uplink)
-//            register_rest_route( 'bizuno-api/v1', 'sales_tax/calc',  ['methods' => 'POST', 'args'=>[],
-//                'callback' => [ new \bizuno\sales_tax($this->options),'calc_tax' ] ] );
-//            register_rest_route( 'bizuno-api/v1', 'shipping/rates',  ['methods' => 'GET', 'args'=>[],
-//                'callback' => [ new \bizuno\shipping($this->options),'rates_list' ],     'permission_callback' => [$this, 'check_access'] ] );
+//          register_rest_route( 'bizuno-api/v1', 'sales_tax/calc',  ['methods' => 'POST', 'args'=>[],
+//              'callback' => [ new \bizuno\sales_tax($this->options),'calc_tax' ] ] );
+//          register_rest_route( 'bizuno-api/v1', 'shipping/rates',  ['methods' => 'GET', 'args'=>[],
+//              'callback' => [ new \bizuno\shipping($this->options),'rates_list' ],     'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/update',  ['methods' => 'POST','args'=>[],
                 'callback' => [ new \bizuno\product($this->options), 'product_update' ], 'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/refresh', ['methods' => 'PUT', 'args'=>[],

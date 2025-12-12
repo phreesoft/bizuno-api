@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-28
+ * @version    7.x Last Update: 2025-12-10
  * @filesource /lib/order.php
  */
 
@@ -43,6 +43,63 @@ class order extends common
     }
 
     /********************* Hooks for WooCommerce  *************************/
+    public function bizuno_before_calculate_totals($cart) {
+        if (is_admin() && !defined('DOING_AJAX')) { return; }
+        if (did_action('woocommerce_before_calculate_totals') >= 2) { return; }
+        foreach ($cart->get_cart() as $item) {
+            $product = $item['data'];
+            $qty     = $item['quantity'];
+            $tiers = $product->get_meta('_bizuno_price_tiers', true);
+            if (empty($tiers) || !is_array($tiers)) { continue; }
+            $best_price = null;
+            foreach ($tiers as $tier) {
+                if ($qty >= $tier['qty']) {
+                    $best_price = (float)$tier['price'];
+                } else { break; } // tiers are sorted → safe to stop
+            }
+            if ($best_price !== null && $best_price < $product->get_price('edit')) { $item['data']->set_price($best_price); }
+        }
+    }
+
+    public function bizuno_enforce_bulk_increment($args, $product) {
+        $tiers = $product->get_meta('_bizuno_price_tiers', true);
+        if (empty($tiers) || !is_array($tiers)) {
+            return $args; // No tiers → standard behavior
+        }
+        // Sort tiers and get the lowest (first) tier quantity
+        usort($tiers, function($a, $b) { return (int)$a['qty'] <=> (int)$b['qty']; });
+        $lowest_tier_qty = (int)$tiers[0]['qty']; // e.g., 20 for box of 20 AA batteries
+        // Only apply if lowest tier is > 1 (i.e., sold in packs)
+        if ($lowest_tier_qty > 1) {
+            $args['min_value'] = $lowest_tier_qty;
+            $args['step']      = $lowest_tier_qty;
+        }
+        return $args;
+    }
+
+    public function bizuno_validate_bulk_quantity($passed, $product_id, $quantity) {
+        $product = wc_get_product($product_id);
+        if (!$product) return $passed;
+        $tiers = $product->get_meta('_bizuno_price_tiers', true);
+        if (empty($tiers) || !is_array($tiers)) return $passed;
+        usort($tiers, function($a, $b) { return (int)$a['qty'] <=> (int)$b['qty']; });
+        $lowest_tier_qty = (int)$tiers[0]['qty'];
+        if ($lowest_tier_qty > 1) {
+            if ($quantity < $lowest_tier_qty || $quantity % $lowest_tier_qty !== 0) {
+                wc_add_notice(sprintf(
+                    'This product is sold in packs of %d. Please order in multiples of %d (e.g., %d, %d, %d).',
+                    $lowest_tier_qty,
+                    $lowest_tier_qty,
+                    $lowest_tier_qty,
+                    $lowest_tier_qty * 2,
+                    $lowest_tier_qty * 3
+                ), 'error');
+                return false;
+            }
+        }
+        return $passed;
+    }
+
     /**
      *
      * @param type $order_id

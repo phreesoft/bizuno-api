@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-11-24
+ * @version    7.x Last Update: 2025-12-10
  * @filesource /lib/product.php
  */
 
@@ -79,6 +79,60 @@ class product extends common
         return $this->rest_close($output);
     }
 
+    /************** Product Hooks ******************/
+    public function bizuno_single_product_summary()
+    {
+    global $product;
+
+    // Safety check
+    if (!is_a($product, 'WC_Product') || !$product->is_visible()) { return; }
+
+    $tiers = $product->get_meta('_bizuno_price_tiers', true);
+
+    // Only show if tiers exist and are a valid array
+    if (empty($tiers) || !is_array($tiers)) { return; }
+
+    // Ensure tiers are sorted by quantity ascending (just in case)
+    usort($tiers, function($a, $b) { return (int)$a['qty'] <=> (int)$b['qty']; });
+    $pack_size = (int)$tiers[0]['qty'];
+
+    // Start output
+    if ($pack_size > 1) {
+        echo '<p style="font-size: 14px; color: #666; margin: 10px 0;">
+                <strong>Note:</strong> Sold in packages of ' . $pack_size . '. Quantity must be in multiples of ' . $pack_size . '.</p>';
+    }
+    ?>
+    <div class="bizuno-volume-pricing-table" style="margin: 30px 0; padding: 20px; background: #f9f9f9; border: 1px solid #e1e1e1; border-radius: 8px; font-family: Arial, sans-serif;">
+        <h4 style="margin: 0 0 15px 0; color: #333;">Volume Pricing</h4>
+        <table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+            <thead>
+                <tr style="background: #eee;">
+                    <th style="text-align: left; padding: 10px; border-bottom: 2px solid #ddd;">Quantity</th>
+                    <th style="text-align: right; padding: 10px; border-bottom: 2px solid #ddd;">Price Each</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php foreach ($tiers as $tier): ?>
+                    <?php 
+                    $qty   = (int)$tier['qty'];
+                    $price = (float)$tier['price'];
+                    ?>
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 10px;"><?php echo esc_html($qty . '+'); ?></td>
+                        <td style="padding: 10px; text-align: right; font-weight: bold; color: #d63384;">
+                            <?php echo wc_price($price); ?>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+        <p style="margin: 15px 0 0; font-size: 12px; color: #666;">
+            Discount applied automatically in cart based on quantity.
+        </p>
+    </div><p> </p>
+    <?php
+    }
+
     /************** API Product Processing ******************/
     /**
      * Starts the import of product to WooCommerce
@@ -127,6 +181,7 @@ class product extends common
         $wcProduct->set_sale_price('');
 //      $wcProduct->set_regular_price(!empty($post['RegularPrice']) ? $post['RegularPrice'] : '');
 //      $wcProduct->set_sale_price(!empty($post['SalePrice']) ? $post['SalePrice'] : '');
+        $this->priceTiers($wcProduct, !empty($post['PriceTiers']) ? $post['PriceTiers'] : []);
         $wcProduct->set_short_description(!empty($post['DescriptionSales']) ? $post['DescriptionSales'] : $post['Description']);
         $wcProduct->set_slug($this->getPermaLink($slug));
 //      $wcProduct->set_status('published');
@@ -150,8 +205,6 @@ class product extends common
         }
         msgDebug("\nSaving the product.");
         $wcProduct->save();
-        msgDebug("\nChecking for Sell Qtys"); // Checking for price levels by Item
-        if (!empty($post['PriceVariations'])) { $this->priceVariations($wcProduct, $post['PriceVariations']); }
         return $product_id;
     }
 
@@ -168,7 +221,7 @@ class product extends common
         $productType = !empty($post['Type']) ? strtolower($post['Type']) : 'si'; // allows change of product type on the fly
         if ( empty($this->productID) ) { // new product
             msgDebug("\nNew product, starting class ... ");
-            if ('ms'===$productType || !empty($post['PriceVariations'])) {
+            if ('ms'===$productType) {
                 msgDebug(" WC_Product_Variable");
                 $product =  new \WC_Product_Variable();
             } else {
@@ -182,8 +235,8 @@ class product extends common
         } else { // update existing product
             $product   = \wc_get_product( $this->productID );
             $changeType= false;
-            if ($product->is_type( 'simple' )  && ('ms'===$productType || !empty($post['PriceVariations']))) { $changeType = 'variable'; }
-            if ($product->is_type( 'variable' )&& ('ms'<> $productType &&  empty($post['PriceVariations']))) { $changeType = 'simple'; }
+            if ($product->is_type( 'simple' )  && ('ms'===$productType ) ) { $changeType = 'variable'; }
+            if ($product->is_type( 'variable' )&& ('ms'<> $productType ) ) { $changeType = 'simple'; }
             if (!empty($changeType)) {
                 msgDebug("\nSetting type to: $changeType");
                 $classname= \WC_Product_Factory::get_product_classname( $this->productID, $changeType );
@@ -663,7 +716,8 @@ class product extends common
             $result = $wpdb->get_row($sql);
             if (is_null($result)) {
                 msgDebug("\nInserting into fbv with dir = $dir and parent = $parent");
-                $parent = dbWrite($wpdb->prefix.'fbv', ['name'=>$dir, 'parent'=>$parent]);
+                $wpdb->insert( $wpdb->prefix . 'bsi_fbv', ['name'=>$dir, 'parent'=>$parent], ['%s', '%d'] );
+//              $parent = dbWrite($wpdb->prefix.'fbv', ['name'=>$dir, 'parent'=>$parent]);  // no connected to 
             } else {
                 msgDebug("\nFound parent ID: $result->id");
                 $parent = $result->id;
@@ -682,7 +736,8 @@ class product extends common
         msgDebug("\nRead from fbv_attachment_folder: ".print_r($result, true));
         if (is_null($result)) {
             msgDebug("\nInserting into fbv_attachment_folder parent = $fileParent and attach_id = $attach_id");
-            dbGetResult($wpdb->prepare("INSERT INTO {$wpdb->prefix}fbv_attachment_folder (folder_id, attachment_id) VALUES ($fileParent, $attach_id)"));
+            $result = $wpdb->insert( $wpdb->prefix . 'fbv_attachment_folder', ['folder_id'=>(int)$fileParent, 'attachment_id'=>(int)$attach_id], ['%d', '%d'] );
+//          dbGetResult($wpdb->prepare("INSERT INTO {$wpdb->prefix}fbv_attachment_folder (folder_id, attachment_id) VALUES ($fileParent, $attach_id)"));
         }
     }
 
@@ -707,458 +762,106 @@ class product extends common
         return $postID;
     }
 
-    /**
-     * Creates/Updates the variations for the sell levels
-     * The variation data format, for each variation:
-        $variation_data =  array( 'sku' => '','regular_price' => '22.00', 'sale_price' => '','stock_qty' => 10,
-            'attributes' => array( 'size' => 'M', 'color' => 'Green', ) );
-     * @param object $product
-     * @param array $PriceVar
-     * @return null
-     */
-    private function priceVariations($product, $PriceVar='')
-    {
-        msgDebug("\nEntering priceVariations with sellQtys = ".print_r($PriceVar, true));
-        $variations = $this->reformatSellUnits($PriceVar);
-        \update_post_meta( $product->get_id(), 'bizSellQtys', $variations); // save the raw data for view pages
-        // Process the attributes
-        $allAttrs = $product->get_attributes();
-        $attrNames= [];
-        foreach ($allAttrs as $key => $tmp) {
-            if (is_int($key) || empty($key)) { unset($allAttrs[$key]); } // cleans out some earlier issues
-            else { $attrNames[] = $tmp['name']; }
-        }
-        $cnt      = 0;
-        msgDebug("\nEntering processing loop with attr keys = ".print_r($attrNames, true));
-        foreach ($variations['attributes'] as $attr) {
-            msgDebug("\nProcessing attribute: ".print_r($attr, true));
-            $attribute = new \WC_Product_Attribute();
-            $attribute->set_name( $attr['name'] );
-            $attribute->set_options( $attr['options'] );
-            $attribute->set_position( $cnt );
-            $attribute->set_visible( true );
-            $attribute->set_variation( true ); // identify it as a variation
-            $slug= sanitize_title($attr['name']);
-            $allAttrs[$slug]= $attribute;
-//            $key = array_search($attr['name'], $attrNames);
-//            msgDebug("\nSearsch results found key = $key");
-//            if (false===$key) { msgDebug("\nAdding new attribute"); $allAttrs[$slug]= $attribute; }
-//            else              { msgDebug("\nUpdating attribute");   $allAttrs[$slug] = $attribute; }
-            $cnt++;
-        }
-        msgDebug("\nSetting attributes: ".print_r($allAttrs, true));
-        $product->set_attributes( $allAttrs );
-        // get the current variations keyed by product id for searching
-        $existingIDs = $this->getCurrentVariations($product->get_id());
-        // foreach variation in the request
-        foreach ( $variations['variations'] as $value ) {
-            $variation_id = !empty($existingIDs) ? array_shift($existingIDs) : 0;
-            msgDebug("\nVariation ID = $variation_id and value = ".print_r($value, true));
-            if ( empty($variation_id) ) {
-                $vProd = \wc_get_product($product->get_id());
-                $variation_post = [
-                    'post_title'  => $vProd->get_name(),
-                    'post_name'   => 'product-'.$product->get_id().'-variation',
-                    'post_status' => 'publish',
-                    'post_parent' => $vProd->get_id(),
-                    'post_type'   => 'product_variation',
-                    'guid'        => $vProd->get_permalink()];
-                $variation_id = \wp_insert_post( $variation_post );
-            }
-            $variation = new \WC_Product_Variation( $variation_id );
-            if ($this->variationNoDiff($variation, $value)) { msgDebug("\nNo changes, continuing..."); continue; }
-//          $variation->set_sku( $value['sku'] ); // $product->sku (They all use the same SKU)
-            msgDebug("\nSetting the attributes: ".print_r($value['attributes'], true));
-            $variation->set_attributes( $value['attributes'] );
-            $variation->set_weight($value['weight']); // weight (reseting)
-//          $variation->set_length(); //Set the product length.
-//          $variation->set_width(); //Set the product width.
-//          $variation->set_height(); //Set the product height.
-            $variation->set_regular_price( $value['price'] );
-            if ( empty( $value['sale_price'] ) ) {
-                $variation->set_price( $value['price'] );
-                $variation->set_sale_price( '' );
-            } else {
-                $variation->set_price( $value['sale_price'] );
-                $variation->set_sale_price( $value['sale_price'] );
-            }
-            $variation->set_stock_quantity( $value['stock'] );
-            $variation->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
-            $variation->set_stock_status('');
-            $variation->set_backorders($this->options['inv_backorders']); // Options: 'yes', 'no' or 'notify'
-            msgDebug("\nSaving variation");
-            $variation->save(); // Save the data
-        }
-        // The line below will set the default variation selection, set to none for now
-        $default_attr = []; // $variations['variations'][0]['attributes']
-        msgDebug("\nSetting default variations to ".print_r($default_attr, true));
-        $defAttr = $product->get_default_attributes( );
-        if (json_encode($defAttr) <> json_encode($default_attr)) { $product->set_default_attributes( $default_attr ); }
-        // delete left over variants that are no longer used
-        if (sizeof($existingIDs) > 0) { // We still have some more variations, delete them
-            msgDebug("\nLeft over variation ID's Deleting: ".print_r($existingIDs, true));
-            foreach ($existingIDs as $variation_id) {
-                $variation = new \WC_Product_Variation( $variation_id );
-                $variation->delete();
-            }
-        }
-        $product->save(); // samve the parent product
-    }
 
-    //     [Price ByItem] => {"total":3,"rows":[{"label":"Each (1 pieces)","qty":"1","weight":79.8,"price":288.47,"stock":7},{"label":"Pallet Layer (10 pieces)","qty":"10","weight":798,"price":2375.66,"stock":0},{"label":"Pallet (20 pieces)","qty":"20","weight":1596,"price":4072.56,"stock":0}]}
-
-    private function reformatSellUnits($sellQtys)
-    {
-        msgDebug("\nEntering reformatSellUnits"); // with sellQtys = ".print_r($sellQtys, true));
-//        $qtys = json_decode($sellQtys, true);
-        $output = ['attributes'=>[['name'=>'price-discounts', 'options'=>[]]], 'variations'=>[]];
-        foreach ($sellQtys as $row) {
-            $output['variations'][] = ['qty'=>$row['qty'], 'price'=>$row['price'], 'weight'=>$row['weight'],'stock'=>$row['stock'],
-                'attributes'=>['price-discounts'=>$row['label']]];
-            $output['attributes'][0]['options'][] = $row['label'];
-        }
-        msgDebug("\nReturning from reformatSellUnits with output = ".print_r($output, true));
-        return $output;
-    }
-
-    /**
-     * Checks to see if anything values changed in the variation from what is in the db
-     * @param type $variation
-     * @param type $value
-     */
-    private function variationNoDiff($variation, $value)
-    {
-        msgDebug("\nEntering variationNoDiff with value = ".print_r($value, true));
-        unset($value['qty']);
-        if (!$variation->backorders_allowed()) { return false; } // forse setting of backorders allowed
-        $current = [
-            'price'     => $variation->get_regular_price(),
-            'weight'    => $variation->get_weight(),
-            'stock'     => (string)$variation->get_stock_quantity(), // needs to be string so json compares properly
-            'attributes'=> $variation->get_attributes()
-        ];
-        msgDebug("\nComparing to existing: ".print_r($current, true));
-        return json_encode($value) == json_encode($current) ? true : false;
-    }
-
-public function productRefresh($items = [], $verbose = true)
-{
-    global $wpdb;
-
-    if (empty($items)) {
-        return;
-    }
-
-    msgDebug("\nEntering productRefresh with " . count($items) . " items from Bizuno");
-
-    $missingSKUs = [];
-    $updated     = 0;
-    $skipped     = 0;
-
-    // Pre-load all products by SKU in one query (HUGE performance win)
-    $skus = array_filter(array_column($items, 'SKU')); // clean empty SKUs
-    if (empty($skus)) return;
-
-    $placeholders = implode(',', array_fill(0, count($skus), '%s'));
-    $sql = "SELECT meta_value AS sku, post_id 
-            FROM $wpdb->postmeta 
-            WHERE meta_key = '_sku' 
-              AND meta_value IN ($placeholders)";
-
-    $rows = $wpdb->get_results($wpdb->prepare($sql, $skus), OBJECT_K); // key = SKU
-
-    foreach ($items as $item) {
-        $sku = trim($item['SKU'] ?? '');
-        if ($sku === '') continue;
-
-        // Fast lookup from pre-loaded array
-        if (!isset($rows[$sku])) {
-            $missingSKUs[] = $sku;
-            continue;
-        }
-
-        $product_id = $rows[$sku]->post_id;
-        $product    = wc_get_product($product_id);
-
-        if (!$product) {
-            $missingSKUs[] = $sku;
-            continue;
-        }
-
-        // --- Clean incoming data ---
-        $priceReg  = !empty($item['RegularPrice']) ? clean($item['RegularPrice'], 'currency') : null;
-        $priceSale = !empty($item['SalePrice'])    ? clean($item['SalePrice'],    'currency') : null;
-        $price     = $priceReg ?? (!empty($item['Price']) ? clean($item['Price'], 'currency') : null);
-
-        // If no regular price, fall back to current price logic
-        if ($priceReg === null && $price !== null) {
-            $priceReg = $price;
-        }
-
-        $stock = isset($item['QtyStock']) && $item['QtyStock'] !== '' 
-            ? (int)$item['QtyStock'] 
-            : null;
-
-        $weight = clean($item['Weight'] ?? 0, 'float');
-
-        $data = [
-            'price'     => $price,           // current/active price
-            'priceReg'  => $priceReg,        // regular price
-            'priceSale' => $priceSale,       // sale price (or null = no sale)
-            'stock'     => $stock,           // int or null = unlimited
-            'weight'    => $weight ?? 0,
-        ];
-
-        msgDebug("\nProcessing SKU: $sku (ID: {$product->get_id()})");
-
-        // Skip update if nothing changed
-        if ($this->quickNoDiff($product, $data)) {
-            msgDebug("No changes detected for SKU $sku - skipping save");
-            $skipped++;
-            // Still process variations even if main product didn't change
-        } else {
-            $this->productQuickUpdate($product, $data);
-            $updated++;
-            msgDebug("Updated product ID {$product->get_id()} (SKU: $sku)");
-        }
-
-        // Handle pricing variations (tiered pricing, etc.)
-        if (!empty($item['PriceVariations'])) {
-            msgDebug("Applying PriceVariations for SKU: $sku");
-            $this->priceVariations($product, $item['PriceVariations']);
-        }
-    }
-
-    // Summary
-    if ($verbose) {
-        msgAdd("Bizuno sync complete: $updated updated, $skipped unchanged" . 
-               (!empty($missingSKUs) ? ", " . count($missingSKUs) . " SKUs not found" : ""));
-        
-        if (!empty($missingSKUs)) {
-            msgAdd("Missing in WooCommerce: " . implode(', ', $missingSKUs));
-        }
-    }
-}
-/**
-     * Refreshes a block of products in the WooCommerce database
-     */
-/*    public function productRefresh($items=[], $verbose=true)
+    public function productRefresh($items = [], $verbose = true)
     {
         global $wpdb;
-        msgDebug("\nEntering productRefresh with products = ".print_r($items, true));
+        if (empty($items)) { return; }
+        msgDebug("\nEntering productRefresh with " . count($items) . " items from Bizuno");
         $missingSKUs = [];
+        $updated     = 0;
+        $skipped     = 0;
+        $skus = array_filter(array_column($items, 'SKU')); // clean empty SKUs
+        if (empty($skus)) { return; }
+        $placeholders = implode(',', array_fill(0, count($skus), '%s'));
+        $sql = "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN ($placeholders)";
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $skus), OBJECT_K); // key = SKU
         foreach ($items as $item) {
-            $productID = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_sku' AND meta_value='%s' LIMIT 1", $item['SKU'] ) );
-//          $productID = \wc_get_product_id_by_sku($item['SKU']); // doesn't always return a hit, flagging not found error below???
-            if (empty($productID)) {
-                $missingSKUs[] = $item['SKU'];
-                continue;
+            $sku = trim($item['SKU'] ?? '');
+            if ($sku === '') { continue; }
+            // Fast lookup from pre-loaded array
+            if (!isset($rows[$sku])) { $missingSKUs[] = $sku; continue; }
+            $product_id = $rows[$sku]->post_id;
+            $product    = wc_get_product($product_id);
+            if (!$product) { $missingSKUs[] = $sku; continue; }
+
+            $needs_save = false;
+            // Regular price
+            if ($this->notEqual($product->get_regular_price('edit'), $item['RegularPrice'])) {
+                update_post_meta($product_id, '_regular_price', $item['RegularPrice']);
+                $needs_save = true;
             }
-            $tempPrice = clean($item['Price'], 'currency');
-            $price     = !empty($tempPrice) ? $tempPrice : '';
-            $priceReg  = !empty($item['RegularPrice'])? clean($item['RegularPrice'],'currency') : $price;
-            $priceSale = !empty($item['SalePrice'])   ? clean($item['SalePrice'],   'currency') : '';
-            $stock     = !empty($item['QtyStock'])    ? $item['QtyStock']                       : '';
-            $tempWeight= clean($item['Weight'],'float');
-            $itemWeight= !empty($tempWeight)? $tempWeight : 0;
-            $data      = ['price'=>$price, 'priceReg'=>$priceReg, 'priceSale'=>$priceSale, 'stock'=>$stock, 'weight'=>$itemWeight];
-            $product   = $this->getProduct($item);
-            if (empty($product)) { return msgAdd("Error - the variation is missing!"); }
-            if (!$this->quickNoDiff($product, $data)) { 
-                $this->productQuickUpdate($product, $data);
-            } else { msgDebug("\nSkipping product Update, no changes."); }
-            if (!empty($item['PriceVariations'])) {
-                msgDebug("\nPricing variation update, make the changes.");
-                $this->priceVariations($product, $item['PriceVariations']);
+            // Sale price
+            if ($item['SalePrice'] !== null && $this->notEqual($product->get_sale_price('edit'), $item['SalePrice'])) {
+                update_post_meta($product_id, '_sale_price', $item['SalePrice']);
+                $needs_save = true;
+            } elseif ($item['SalePrice'] === null) {
+                delete_post_meta($product_id, '_sale_price');
+                $needs_save = true;
+            }
+            // Active price
+            $active = (!empty($item['SalePrice']) && $item['SalePrice'] < $item['RegularPrice']) ? $item['SalePrice'] : $item['RegularPrice'];
+            update_post_meta($product_id, '_price', $active);
+
+            // Stock (optional — usually unlimited for tiered pricing)
+            if ($item['QtyStock'] !== null) {
+                update_post_meta($product_id, '_manage_stock', 'no'); // or 'yes' if you track
+                update_post_meta($product_id, '_stock_status', 'instock');
+            }
+            // Weight
+            if ($item['Weight'] !== null && $this->notEqual($product->get_weight('edit'), $item['Weight'])) {
+                update_post_meta($product_id, '_weight', $item['Weight']);
+                $needs_save = true;
+            }
+            // === TIERED PRICING LOGIC ===
+            if (!empty($item['PriceTiers']) && is_array($item['PriceTiers'])) {
+                $new_tiers = $item['PriceTiers'];
+                // Sort by qty ascending (important!)
+                usort($new_tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+                $current_tiers = $product->get_meta('_bizuno_price_tiers', true);
+                if ($current_tiers !== $new_tiers) {
+                    $product->update_meta_data('_bizuno_price_tiers', $new_tiers);
+                    $needs_save = true;
+                    msgDebug("Tiered pricing updated for SKU {$item['SKU']}");
+                }
+            } else { // No tiers sent → clear them
+                if ($product->meta_exists('_bizuno_price_tiers')) {
+                    $product->delete_meta_data('_bizuno_price_tiers');
+                    $needs_save = true;
+                }
+            }
+            if ($needs_save) { $product->save(); }
+        }
+        // Summary
+        if ($verbose) {
+            msgAdd("Bizuno sync complete: $updated updated, $skipped unchanged" . (!empty($missingSKUs) ? ", " . count($missingSKUs) . " SKUs not found" : ""));
+            if (!empty($missingSKUs)) {
+                msgAdd("Missing in WooCommerce: " . implode(', ', $missingSKUs));
             }
         }
-        if (!empty($missingSKUs) && $verbose) {
-            msgAdd("The following SKUs are not in the cart yet you say they should be there: ".implode(', ', $missingSKUs));
-        }
-    } */
-
-private function quickNoDiff($product, $data)
-{
-    $current = [
-        'price'     => $product->get_price('edit') !== '' ? (float)$product->get_price('edit') : '',
-        'priceReg'  => $product->get_regular_price('edit') !== '' ? (float)$product->get_regular_price('edit') : '',
-        'priceSale' => $product->get_sale_price('edit') !== '' ? (float)$product->get_sale_price('edit') : '',
-        'weight'    => $product->get_weight('edit') !== '' ? (float)$product->get_weight('edit') : 0,
-        'stock'     => $this->normalizeStock($product),
-    ];
-
-    $incoming = [
-        'price'     => $data['price']     !== null && $data['price']     !== '' ? (float)$data['price']     : '',
-        'priceReg'  => $data['priceReg']  !== null && $data['priceReg']  !== '' ? (float)$data['priceReg']  : '',
-        'priceSale' => $data['priceSale'] !== null && $data['priceSale'] !== '' ? (float)$data['priceSale'] : '',
-        'weight'    => (float)($data['weight'] ?? 0),
-        'stock'     => $data['stock'] ?? null,
-    ];
-
-    // Normalize incoming stock: null or empty = unlimited
-    if ($incoming['stock'] === null || $incoming['stock'] === '') {
-        $incoming['stock'] = 999999;
     }
 
-    msgDebug("\nquickNoDiff comparison:\nCurrent: " . print_r($current, true) . "\nIncoming: " . print_r($incoming, true));
-
-    return $current === $incoming;
-}
-
-private function normalizeStock($product)
-{
-    if (!$product->get_manage_stock()) {
-        return 999999; // unlimited
-    }
-    $qty = $product->get_stock_quantity('edit');
-    return $qty === null ? 999999 : (int)$qty;
-}
-/*
-    private function quickNoDiff($product, $data)
+    private function notEqual($a, $b) // Helper to compare floats/strings safely
     {
-        unset($data['priceReg']);
-        msgDebug("\nEntering quickNoDiff with data = ".print_r($data, true));
-        $current = [
-            'price'    => $product->get_price(),
-            'priceSale'=> $product->get_sale_price(),
-            'stock'    => $product->get_stock_quantity(),
-            'weight'   => $product->get_weight()];
-        msgDebug("\nPulled current data from db: ".print_r($current, true));
-        $noDiffData = empty(array_diff_assoc($data, $current)) ? true : false;
-        msgDebug("\narray diff = ".print_r(array_diff_assoc($data, $current), true));
-        return $noDiffData;
-    } */
-    
-/*    private function byItemNoDiff($product, $byItem)
+        if ($a === $b) return false;
+        return (float)$a != (float)$b;
+    }
+
+    private function priceTiers(&$product, $tiers=[])
     {
-        msgDebug("\nEntering byItemNoDiff with byItem = ".print_r($byItem, true));
-        if (empty($byItem)) { return true; }
-        $tempdbItem= \get_post_meta( $product->get_id(), 'bizSellQtys');
-        $dbByItem  = json_encode(sizeof($tempdbItem)<2 ? array_shift($tempdbItem) : $tempdbItem);
-        $tempByItem= $this->reformatSellUnits($byItem);
-        $dataByItem= json_encode($tempByItem);
-        msgDebug("\ndbByItem   = ".print_r($dbByItem, true));
-        msgDebug("\ndataByItem = ".print_r($dataByItem, true));
-        $noDiffItem = $dbByItem == $dataByItem ? true : false;
-        if (!$noDiffItem) { 
-            msgDebug("\nUpdating post meta with ".print_r($dataByItem, true));
-            \update_post_meta( $product->get_id(), 'bizSellQtys', $tempByItem);
-        }
-        return $noDiffItem;
-    } */
-    
-private function productQuickUpdate($product, $data)
-{
-    $product_id = $product->get_id();
-    $needs_save = false; // Only call $product->save() if we touch something that requires it
-
-    // 1. Regular Price
-    $current_reg = $product->get_regular_price('edit');
-    $new_reg     = $data['priceReg'] !== null && $data['priceReg'] !== '' ? $data['priceReg'] : '';
-
-    if ($this->notEqual($current_reg, $new_reg)) {
-        update_post_meta($product_id, '_regular_price', $new_reg);
-        update_post_meta($product_id, '_price',        $new_reg); // temporary fallback
-        $needs_save = true;
-    }
-
-    // 2. Sale Price
-    $current_sale = $product->get_sale_price('edit');
-    $new_sale     = $data['priceSale'] !== null && $data['priceSale'] !== '' ? $data['priceSale'] : '';
-
-    if ($this->notEqual($current_sale, $new_sale)) {
-        if ($new_sale === '' || $new_sale === null) {
-            delete_post_meta($product_id, '_sale_price');
-        } else {
-            update_post_meta($product_id, '_sale_price', $new_sale);
-        }
-        $needs_save = true;
-    }
-
-    // 3. Active Price (only if sale is empty or sale > regular)
-    if ($needs_save) {
-        $active_price = (!empty($new_sale) && $new_sale < $new_reg) ? $new_sale : $new_reg;
-        update_post_meta($product_id, '_price', $active_price);
-    }
-
-    // 4. Stock Quantity
-    $manage_stock = $product->get_manage_stock();
-    $new_stock    = $data['stock'] ?? null;
-
-    if ($manage_stock) {
-        $current_stock = $product->get_stock_quantity('edit');
-        // Normalize null = unlimited
-        $current_stock_norm = $current_stock === null ? 999999 : (int)$current_stock;
-        $new_stock_norm     = $new_stock === null ? 999999 : (int)$new_stock;
-
-        if ($current_stock_norm !== $new_stock_norm) {
-            if ($new_stock === null) {
-                delete_post_meta($product_id, '_stock');
-            } else {
-                update_post_meta($product_id, '_stock', $new_stock);
+        msgDebug("\nEntering priceTiers with tiers = ".print_r($tiers, true));
+        if (!empty($tiers) && is_array($tiers)) {
+            // Sort by qty ascending (important!)
+            usort($tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+            $current_tiers = $product->get_meta('_bizuno_price_tiers', true);
+            if ($current_tiers !== $tiers) {
+                $product->update_meta_data('_bizuno_price_tiers', $tiers);
+                msgDebug("\nTiered pricing updated!");
             }
-            update_post_meta($product_id, '_manage_stock', 'yes');
-            update_post_meta($product_id, '_stock_status', $new_stock > 0 ? 'instock' : 'outofstock');
-            $needs_save = true;
-        }
-    } else {
-        // If Bizuno sends a real stock number, turn on stock management
-        if ($new_stock !== null && $new_stock !== '') {
-            update_post_meta($product_id, '_manage_stock', 'yes');
-            update_post_meta($product_id, '_stock', $new_stock);
-            update_post_meta($product_id, '_stock_status', $new_stock > 0 ? 'instock' : 'outofstock');
-            $needs_save = true;
+        } else { // No tiers sent → clear them
+            if ($product->meta_exists('_bizuno_price_tiers')) { $product->delete_meta_data('_bizuno_price_tiers'); }
         }
     }
-
-    // 5. Weight
-    $current_weight = $product->get_weight('edit');
-    $new_weight     = $data['weight'] ?? 0;
-
-    if ($this->notEqual($current_weight, $new_weight)) {
-        if ($new_weight == 0) {
-            delete_post_meta($product_id, '_weight');
-        } else {
-            update_post_meta($product_id, '_weight', $new_weight);
-        }
-        $needs_save = true;
-    }
-
-    // Final save – only once, and only if needed
-    if ($needs_save) {
-        // This is still required for object cache, search index, and some hooks
-        $product->save();
-        msgDebug("Full save triggered for product ID $product_id");
-    } else {
-        msgDebug("All updates done via direct meta – no save() needed for ID $product_id");
-    }
-}
-
-// Helper to compare floats/strings safely
-private function notEqual($a, $b)
-{
-    if ($a === $b) return false;
-    return (float)$a != (float)$b;
-}
-
-/*
-    private function productQuickUpdate($product, $data=[])
-    {
-        msgDebug("\nEntering productQuickUpdate with data = ".print_r($data, true));
-        $product->set_price         ($data['price']);
-        $product->set_regular_price (!empty($data['priceReg']) ? $data['priceReg'] : $data['price']);
-        $product->set_sale_price    (!empty($data['priceSale'])? $data['priceSale']: '');
-        if (!empty($data['stock']) ){
-            $product->set_stock_quantity( $data['stock'] );
-            $product->set_stock_status('');
-        }
-        $product->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
-        $product->set_backorders($this->options['inv_backorders']);
-        if (!empty($data['weight'])) { $product->set_weight($data['weight']); }
-        msgDebug("\nSaving product.");
-        $product->save(); // Save to database and sync
-        msgDebug("\nread back price = ".$product->get_price());
-    } */
 
     /**
      * This method syncs the products flagged in Bizuno to be listed and the actual listed products.
