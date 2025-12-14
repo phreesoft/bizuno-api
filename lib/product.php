@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-10
+ * @version    7.x Last Update: 2025-12-113
  * @filesource /lib/product.php
  */
 
@@ -237,14 +237,27 @@ class product extends common
             $changeType= false;
             if ($product->is_type( 'simple' )  && ('ms'===$productType ) ) { $changeType = 'variable'; }
             if ($product->is_type( 'variable' )&& ('ms'<> $productType ) ) { $changeType = 'simple'; }
-            if (!empty($changeType)) {
-                msgDebug("\nSetting type to: $changeType");
-                $classname= \WC_Product_Factory::get_product_classname( $this->productID, $changeType );
-                $product= new $classname( $this->productID );
-                $product->save();
-            }
+            if (!empty($changeType)) { $product = $this->productChangeType($changeType); }
         }
         return $product;
+    }
+
+    private function productChangeType(&$product, $changeType='simple')
+    {
+        msgDebug("\nSetting type to: $changeType");
+        if ($changeType === 'simple') { // need to remove the variations
+            $variations = $product->get_children();  // Gets variation IDs
+            if ($variations) {
+                foreach ($variations as $variation_id) {
+                    $variation = \wc_get_product($variation_id);
+                    if ($variation) { $variation->delete(true); } // true = force delete (permanent)
+                }
+                \wc_delete_product_transients($this->productID);
+            }
+        }
+        $classname= \WC_Product_Factory::get_product_classname( $this->productID, $changeType );
+        $product= new $classname( $this->productID );
+        $product->save();
     }
 
     private function productRelated($post)
@@ -769,8 +782,6 @@ class product extends common
         if (empty($items)) { return; }
         msgDebug("\nEntering productRefresh with " . count($items) . " items from Bizuno");
         $missingSKUs = [];
-        $updated     = 0;
-        $skipped     = 0;
         $skus = array_filter(array_column($items, 'SKU')); // clean empty SKUs
         if (empty($skus)) { return; }
         $placeholders = implode(',', array_fill(0, count($skus), '%s'));
@@ -782,7 +793,7 @@ class product extends common
             // Fast lookup from pre-loaded array
             if (!isset($rows[$sku])) { $missingSKUs[] = $sku; continue; }
             $product_id = $rows[$sku]->post_id;
-            $product    = wc_get_product($product_id);
+            $product    = $this->getProduct($item);
             if (!$product) { $missingSKUs[] = $sku; continue; }
 
             $needs_save = false;
@@ -832,13 +843,7 @@ class product extends common
             }
             if ($needs_save) { $product->save(); }
         }
-        // Summary
-        if ($verbose) {
-            msgAdd("Bizuno sync complete: $updated updated, $skipped unchanged" . (!empty($missingSKUs) ? ", " . count($missingSKUs) . " SKUs not found" : ""));
-            if (!empty($missingSKUs)) {
-                msgAdd("Missing in WooCommerce: " . implode(', ', $missingSKUs));
-            }
-        }
+        if ($verbose && !empty($missingSKUs)) { msgAdd("Missing in WooCommerce: " . implode(', ', $missingSKUs)); }
     }
 
     private function notEqual($a, $b) // Helper to compare floats/strings safely
