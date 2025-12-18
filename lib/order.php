@@ -137,6 +137,7 @@ class order extends common
      */
     public function orderExport($orderID=false)
     {
+        msgTrap();
         if ( empty ( $orderID ) ) { error_log("Bad orderID passed: $orderID"); return; }
         $this->client_open();
         if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".print_r($order, true));  } // return;
@@ -212,7 +213,8 @@ class order extends common
     }
     private function getTaxAmount($order)
     {
-        if (!empty($this->options['tax_enable'])) { // Uses PhreeSoft RESTful tax
+        // Fees are no longer used, taxes are now calculated as tax
+/*        if (!empty($this->options['tax_enable'])) { // Uses PhreeSoft RESTful tax
             $fees = $order->get_fees();
             foreach ( $fees as $fee_item ) {
                 $name = $fee_item->get_name();
@@ -222,7 +224,7 @@ class order extends common
                     return !empty($amount) ? $amount : 0; // fixes if value is null
                 }
             }
-        } // else Woocommerce tax calculator
+        } */ // else Woocommerce tax calculator
         $temp = $order->get_tax_totals();
         $arrTax = array_shift($temp);
         return !empty($arrTax->amount) ? $arrTax->amount : 0;
