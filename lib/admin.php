@@ -36,8 +36,8 @@ class admin extends common
             'rest_user_name' => '',   'rest_user_pass' => '',
             'inv_stock_mgt'  => false,'inv_backorders' => 'no',
             'prefix_order'   => 'WC', 'prefix_customer'=> 'WC',
-            'journal_id'     => 0,    'autodownload'   => 0,
-            'tax_enable'     => 0,    'tax_nexus'      => []];
+            'journal_id'     => 0,    'autodownload'   => 'no',
+            'tax_enable'     => 'no', 'tax_nexus'      => []];
         $this->is_post = isset($_POST['bizuno_api_form_updated']) && $_POST['bizuno_api_form_updated'] == 'Y' ? true : false;
         $this->options = $this->processOptions($this->defaults);
     }
@@ -193,12 +193,15 @@ class admin extends common
        Options: Auto-Journal - will create Invoice if everything is in stock, otherwise will create a Sales Order. Sales Order - Will always create a sales order. Invoice - Will always create an invoice.
       </td></tr>
       <tr><th scope="row">Autodownload Orders:</th><td>
-        <input type="checkbox" name="bizuno_api_autodownload"'.(!empty($this->options['autodownload'])?' checked':'').'><br />
+        <input type="checkbox" name="bizuno_api_autodownload"'.(in_array($this->options['autodownload'], ['yes', 1]) ? ' checked' : '').'><br />
           If checked, your orders will automatically be downloaded to Bizuno and status at the cart marked complete just after the customer completes the order.
       </td></tr>
-      <tr><th scope="row">Enable Bizuno RESTful Tax?</th><td>
-        <input type="checkbox" name="bizuno_api_tax_enable"'.(!empty($this->options['tax_enable'])?' checked':'').'><br />
-          If checked, your orders will use the PhreeSoft tax service to lookup the tax rate based on the shipping zip code. NOTE: If this feature is enabled, the \'Enable taxes\' checkbox must be unchecked in the WooCommerce -> Settings -> General tab to avoid duplication of the tax calculation. 
+      <tr><th scope="row">Use PhreeSoft Tax calculator?</th><td>
+        <select name="bizuno_api_tax_enable">
+          <option value="no"'    . ($this->options['tax_enable']=='no'  ? ' selected' : '') . '>No</option>
+          <option value="yes"'   . ($this->options['tax_enable']=='yes' ? ' selected' : '') . '>Yes</option>
+        </select><br />
+       Select Yes to use the PhreeSoft sales tax calculator. Selecting No will use the sales tax calculator as defined the the WooCommerce settings.
       </td></tr>
       <tr><th scope="row">States with Sales Tax Nexus</th><td>
         <select name="bizuno_api_tax_nexus[]" multiple size="10">'."\n";
@@ -232,11 +235,7 @@ class admin extends common
         $output = [];
         foreach ($values as $key => $default) {
             if (!empty($this->is_post)) {
-                switch ($key) {
-                    case 'autodownload':
-                    case 'tax_enable':  $output[$key] = isset( $_POST[ 'bizuno_api_'.$key ] ) ? 1 : 0; break;
-                    default:            $output[$key] = $_POST[ 'bizuno_api_'.$key ];
-                }
+                $output[$key] = $_POST[ 'bizuno_api_'.$key ];
                 update_option ( 'bizuno_api_'.$key, $output[$key] );
             } else {
                 $output[$key] = \get_option ( 'bizuno_api_'.$key, $default );

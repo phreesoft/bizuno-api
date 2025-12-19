@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-10
+ * @version    7.x Last Update: 2025-12-19
  * @filesource /lib/order.php
  */
 
@@ -107,8 +107,8 @@ class order extends common
      */
     public function bizuno_api_post_payment($order_id) {
         if ( !empty ( \get_post_meta ( $order_id, 'bizuno_order_exported' ) ) ) { return; } // already downloaded, prevents duplicate download errors
-//        \update_post_meta ( $order_id, 'bizuno_order_exported', 0 ); // Does nothing in HPOS
-        if ( !empty ( \get_option ( 'bizuno_api_autodownload', false ) ) ) {
+//      \update_post_meta ( $order_id, 'bizuno_order_exported', 0 ); // Does nothing in HPOS
+        if ( in_array ( \get_option ( 'bizuno_api_autodownload', false ), ['yes', 1] ) ) {
             $this->orderExport($order_id); // call return to bit bucket as as all messsages are suppressed
             $wooOrder = new \WC_Order($order_id);
             $wooOrder->update_status('processing');
@@ -213,18 +213,6 @@ class order extends common
     }
     private function getTaxAmount($order)
     {
-        // Fees are no longer used, taxes are now calculated as tax
-/*        if (!empty($this->options['tax_enable'])) { // Uses PhreeSoft RESTful tax
-            $fees = $order->get_fees();
-            foreach ( $fees as $fee_item ) {
-                $name = $fee_item->get_name();
-                if ('Sales Tax'==$name) {
-                    $amount = $fee_item->get_total();
-                    msgDebug("\nRead RESTful sales tax amount = $amount");
-                    return !empty($amount) ? $amount : 0; // fixes if value is null
-                }
-            }
-        } */ // else Woocommerce tax calculator
         $temp = $order->get_tax_totals();
         $arrTax = array_shift($temp);
         return !empty($arrTax->amount) ? $arrTax->amount : 0;

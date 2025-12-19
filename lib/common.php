@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-11-24
+ * @version    7.x Last Update: 2025-12-19
  * @filesource /lib/common.php
  */
 
@@ -30,6 +30,9 @@ namespace bizuno;
 class common
 {
     public $api_local = false;
+    public $ShipTaxSt = ['AR','CT','GA','IL','KS','KY','MI','MS','NE','NJ','NM','NY',
+        'NC','ND','OH','OK','PA','RI','SC','SD','TN','TX','UT','VT','WA','WV','WI'];
+
     public $lang = [
         'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
     ];

@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-11-24
+ * @version    7.x Last Update: 2025-12-19
  * @filesource /lib/shipping.php
  */
 
@@ -82,18 +82,26 @@ class shipping extends common
     
     public function bizuno_override_shipping_tax_class( $rates, $package )
     {
-        msgDebug("\nEntering bizuno_override_shipping_tax_class with rates = ".print_r($rates, true));
+        msgDebug("\nEntering bizuno_override_shipping_tax_class with rates = " . print_r($rates, true));
         if ( empty( $rates ) ) { return $rates; }
-
-        $taxRate = $this->getSalesTaxRate();
-        msgDebug("\nWorking with tax rate = $taxRate");
+        $state = $package['destination']['state'] ?? '';
+        $apply_shipping_tax = in_array($state, $this->ShipTaxSt);
+        msgDebug("\nState: $state | Apply shipping tax: " . ($apply_shipping_tax ? 'yes' : 'no'));
         foreach ( $rates as $rate_key => $rate ) {
             $rate_cost = (float) $rate->get_cost();
             msgDebug("\nRate cost = $rate_cost");
-            $this_rate_tax = wc_format_decimal ( $rate_cost * $taxRate );
-            $rate->set_taxes( [ '1' => $this_rate_tax ] );
+            if ( $apply_shipping_tax ) {
+                // Get the product tax rate (your dynamic rate, e.g., 0.07 for 7%)
+                $taxRate = $this->getSalesTaxRate(); // This should return decimal like 0.07
+                $this_rate_tax = wc_format_decimal( $rate_cost * $taxRate );
+                // Taxes array: Key is usually the tax rate ID (often 1 for single rate)
+                $rate->set_taxes( [ 1 => $this_rate_tax ] );
+            } else {
+                // Zero out shipping taxes for non-taxable states (like FL)
+                $rate->set_taxes( [] ); // Or [1 => 0] if empty causes issues
+            }
         }
-        msgDebug("\nUpdated rates = ".print_r($rates, true));
+        msgDebug("\nUpdated rates = " . print_r($rates, true));
         return $rates;
     }
 }

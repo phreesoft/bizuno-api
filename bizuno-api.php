@@ -81,17 +81,16 @@ class bizuno_api
 add_filter('woocommerce_quantity_input_args', [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
 add_filter('woocommerce_add_to_cart_validation', [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
 
-
-            add_filter ( 'woocommerce_rate_label',                           [ $this->sales_tax,'bizuno_fix_tax_label' ], 10, 2 );
-            add_filter ( 'woocommerce_matched_rates',                        [ $this->sales_tax,'bizuno_get_rest_tax_rate' ], 10, 3 );
-            add_filter ( 'woocommerce_package_rates',                        [ $this->shipping, 'bizuno_override_shipping_tax_class' ], 20, 2 );
-            add_filter ( 'woocommerce_shipping_is_taxable', '__return_true' );
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
             add_filter ( 'woocommerce_shop_order_list_table_columns',        [ $this->admin,    'bizuno_api_order_column_header_hpos' ], 20 ); // works with HPOS
             add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,    'bizuno_api_order_preview_filter' ], 10, 2);
             add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
+            if ($this->options['tax_enable']=='yes') {
+                add_filter ( 'woocommerce_matched_rates',                    [ $this->sales_tax,'bizuno_get_rest_tax_rate' ], 10, 3 );
+                add_filter ( 'woocommerce_package_rates',                    [ $this->shipping, 'bizuno_override_shipping_tax_class' ], 20, 2 );
+            }
         }
     }
 
@@ -213,14 +212,11 @@ add_filter('woocommerce_add_to_cart_validation', [ $this->order,    'bizuno_vali
 //              $wpdb->get_results( "INSERT INTO `{$wpdb->prefix}wc_orders_meta` ... WHERE `meta_key`='bizuno_order_exported'");
             }
             if (!wp_next_scheduled('bizuno_api_image_process')) { wp_schedule_event(time(), 'hourly', 'bizuno_api_image_process'); }
-            $this->sales_tax->add_bizuno_tax_class();
         }
     }
     public function deactivate()
     {
         if (wp_next_scheduled('bizuno_api_image_process')) { wp_clear_scheduled_hook('bizuno_api_image_process'); }
-        // @TODO - Remove Bizuno Tax class
-        $this->sales_tax->remove_bizuno_tax_class();
     }
 }
 new bizuno_api();
@@ -230,10 +226,3 @@ function bizuno_isp_uninstall() {
     global $wpdb;
     $wpdb->get_results( "DELETE FROM `{$wpdb->prefix}wc_orders_meta` WHERE `meta_key`='bizuno_order_exported'");
 }
-
-add_action( 'wp_footer', function() {
-    if ( is_admin() || ! current_user_can('manage_woocommerce') ) return;
-    if ( WC()->cart && WC()->cart->needs_shipping_address() ) {
-        echo '<!-- Bizuno Tax Hook IS ACTIVE -->';
-    }
-});
