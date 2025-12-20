@@ -137,7 +137,6 @@ class order extends common
      */
     public function orderExport($orderID=false)
     {
-        msgTrap();
         if ( empty ( $orderID ) ) { error_log("Bad orderID passed: $orderID"); return; }
         $this->client_open();
         if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".print_r($order, true));  } // return;
