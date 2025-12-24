@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-19
+ * @version    7.x Last Update: 2025-12-22
  * @filesource /lib/common.php
  */
 
@@ -32,7 +32,7 @@ class common
     public $api_local = false;
     public $ShipTaxSt = ['AR','CT','GA','IL','KS','KY','MI','MS','NE','NJ','NM','NY',
         'NC','ND','OH','OK','PA','RI','SC','SD','TN','TX','UT','VT','WA','WV','WI'];
-
+    public $state = '';
     public $lang = [
         'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
     ];
@@ -55,6 +55,7 @@ class common
     }
     public function rest_open(\WP_REST_Request $request)
     {
+        msgDebug("\nEntering rest_open");
         $this->user = \wp_get_current_user();
         $qParams = $request->get_params(); // retrieve the get parameters
         if (empty($qParams)) { 
@@ -79,13 +80,13 @@ class common
     {
         msgDebug("\nEntering getSalesTaxRate");
         // This is the only place that is guaranteed to run on every tax line
-        $customer = WC()->customer ?: new WC_Customer();
-        $freight  = WC()->cart->get_shipping_total();
-        $total    = WC()->cart->get_cart_contents_total();
-        $postcode = $customer->get_shipping_postcode() ?: $customer->get_billing_postcode();
-        $city     = $customer->get_shipping_city()     ?: $customer->get_billing_city();
-        $state    = $customer->get_shipping_state()    ?: $customer->get_billing_state();
-        $country  = $customer->get_shipping_country()  ?: $customer->get_billing_country();
+        $customer   = WC()->customer ?: new WC_Customer();
+        $freight    = WC()->cart->get_shipping_total();
+        $total      = WC()->cart->get_cart_contents_total();
+        $postcode   = $customer->get_shipping_postcode() ?: $customer->get_billing_postcode();
+        $city       = $customer->get_shipping_city()     ?: $customer->get_billing_city();
+        $this->state= $customer->get_shipping_state()    ?: $customer->get_billing_state();
+        $country    = $customer->get_shipping_country()  ?: $customer->get_billing_country();
 
         msgDebug("\npostcode = $postcode and country = $country");
         if ( empty( $postcode ) || $country !== 'US' ) { return 0.0; }
@@ -97,7 +98,7 @@ class common
         if ( false !== $cached ) { 
             $rate = $cached; // this is the rate as decimal (8.25, not 0.0825)
         } else {
-            $args = ['freight'=>$freight, 'total'=>$total, 'city'=>$city, 'state'=>$state, 'zip'=>$postcode, 'country'=>$country];
+            $args = ['freight'=>$freight, 'total'=>$total, 'city'=>$city, 'state'=>$this->state, 'zip'=>$postcode, 'country'=>$country];
             $this->client_open();
             if (empty($args['zip'])) { return; }
             $isTaxable = in_array($args['state'], $this->options['tax_nexus']) ? true : false;

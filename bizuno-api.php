@@ -3,7 +3,7 @@
  * Plugin Name: Bizuno API
  * Plugin URI:  https://www.phreesoft.com
  * Description: Integrates your WordPress e-store with your Bizuno business
- * Version:     7.1
+ * Version:     7.3.5
  * Author:      PhreeSoft, Inc. (support@phreesoft.com)
  * Author URI:  http://www.PhreeSoft.com
  * Text Domain: bizuno
@@ -176,6 +176,7 @@ add_filter('woocommerce_add_to_cart_validation', [ $this->order,    'bizuno_vali
     }
     public function check_access(WP_REST_Request $request)
     {
+        \bizuno\msgDebug("\nEntering check_access");
         $email = $request->get_header('email');
         $pass  = $request->get_header('pass');
         if (empty($email) || empty($pass)) { return false; }

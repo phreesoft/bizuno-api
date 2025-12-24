@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-19
+ * @version    7.x Last Update: 2025-12-22
  * @filesource /lib/sales_tax.php
  */
 
@@ -42,7 +42,7 @@ class sales_tax extends common
         $output= [ 1 => [  // Integer key: Arbitrary rate ID (use 1 for single rate)
             'rate'     => $rate * 100,     // Float: 8.25 (not 0.0825)
             'label'    => 'Bizuno Sales Tax',
-            'shipping' => in_array($state, $this->ShipTaxSt) ? 'yes' : 'no',
+            'shipping' => in_array($this->state, $this->ShipTaxSt) ? 'yes' : 'no',
             'compound' => 'no' ] ];
         msgDebug("\nReturning with rate array = ".print_r($output, true));
         return $output;

@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-113
+ * @version    7.x Last Update: 2025-12-23
  * @filesource /lib/product.php
  */
 
@@ -68,7 +68,7 @@ class product extends common
     {
         $data   = $this->rest_open($request);
         $success= $this->productRefresh($data['data']);
-        $output = ['result'=>!empty($success)?'Success':'Fail'];
+        $output = ['result'=>!empty($success['result'])?'Success':'Fail', 'note'=>!empty($success['note'])?$success['note']:''];
         return $this->rest_close($output);
     }
     public function product_sync($request)
@@ -775,80 +775,165 @@ class product extends common
         return $postID;
     }
 
-
     public function productRefresh($items = [], $verbose = true)
     {
         global $wpdb;
-        if (empty($items)) { return; }
+        if (empty($items)) {
+            return ['result' => false, 'note' => 'No items provided'];
+        }
+
         msgDebug("\nEntering productRefresh with " . count($items) . " items from Bizuno");
+
+        $cnt = 0;
         $missingSKUs = [];
-        $skus = array_filter(array_column($items, 'SKU')); // clean empty SKUs
-        if (empty($skus)) { return; }
+
+        // Build list of SKUs to lookup
+        $skus = array_filter(array_column($items, 'SKU'));
+        if (empty($skus)) {
+            return ['result' => true, 'note' => 'No valid SKUs found'];
+        }
+
+        // Batch lookup WooCommerce products by SKU
         $placeholders = implode(',', array_fill(0, count($skus), '%s'));
         $sql = "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN ($placeholders)";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $skus), OBJECT_K); // key = SKU
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $skus), OBJECT_K); // keyed by SKU
+
         foreach ($items as $item) {
             $sku = trim($item['SKU'] ?? '');
-            if ($sku === '') { continue; }
-            // Fast lookup from pre-loaded array
-            if (!isset($rows[$sku])) { $missingSKUs[] = $sku; continue; }
+            if ($sku === '') {
+                continue;
+            }
+
+            if (!isset($rows[$sku])) {
+                $missingSKUs[] = $sku;
+                continue;
+            }
+
             $product_id = $rows[$sku]->post_id;
-            $product    = $this->getProduct($item);
-            if (!$product) { $missingSKUs[] = $sku; continue; }
+            $product = wc_get_product($product_id); // Proper WC_Product object
+            if (!$product) {
+                $missingSKUs[] = $sku;
+                continue;
+            }
 
             $needs_save = false;
-            // Regular price
-            if ($this->notEqual($product->get_regular_price('edit'), $item['RegularPrice'])) {
-                update_post_meta($product_id, '_regular_price', $item['RegularPrice']);
-                $needs_save = true;
-            }
-            // Sale price
-            if ($item['SalePrice'] !== null && $this->notEqual($product->get_sale_price('edit'), $item['SalePrice'])) {
-                update_post_meta($product_id, '_sale_price', $item['SalePrice']);
-                $needs_save = true;
-            } elseif ($item['SalePrice'] === null) {
-                delete_post_meta($product_id, '_sale_price');
-                $needs_save = true;
-            }
-            // Active price
-            $active = (!empty($item['SalePrice']) && $item['SalePrice'] < $item['RegularPrice']) ? $item['SalePrice'] : $item['RegularPrice'];
-            update_post_meta($product_id, '_price', $active);
 
-            // Stock (optional — usually unlimited for tiered pricing)
-            if ($item['QtyStock'] !== null) {
-                update_post_meta($product_id, '_manage_stock', 'no'); // or 'yes' if you track
-                update_post_meta($product_id, '_stock_status', 'instock');
-            }
-            // Weight
-            if ($item['Weight'] !== null && $this->notEqual($product->get_weight('edit'), $item['Weight'])) {
-                update_post_meta($product_id, '_weight', $item['Weight']);
+            // === Manage Stock Setting ===
+            $current_manage = $product->get_manage_stock('edit');
+            $new_manage     = !empty($this->options['inv_stock_mgt']); // true/false
+
+            if ($current_manage !== $new_manage) {
+                $product->set_manage_stock($new_manage);
                 $needs_save = true;
             }
-            // === TIERED PRICING LOGIC ===
+
+            // === Backorders ===
+            $current_backorders = $product->get_backorders('edit');
+            $new_backorders     = $this->options['inv_backorders'] ?? 'no';
+
+            if ($current_backorders !== $new_backorders) {
+                $product->set_backorders($new_backorders);
+                $needs_save = true;
+            }
+
+            // === Regular Price ===
+            if ($this->notEqual($product->get_regular_price('edit'), $item['RegularPrice'])) {
+                $product->set_regular_price($item['RegularPrice']);
+                $needs_save = true;
+            }
+
+            // === Sale Price ===
+            if ($item['SalePrice'] !== null) {
+                if ($this->notEqual($product->get_sale_price('edit'), $item['SalePrice'])) {
+                    $product->set_sale_price($item['SalePrice']);
+                    $needs_save = true;
+                }
+            } else {
+                if ($product->get_sale_price('edit') !== '') {
+                    $product->set_sale_price('');
+                    $needs_save = true;
+                }
+            }
+
+            // === Active Price (WooCommerce auto-handles this, but force sync) ===
+            $active = (!empty($item['SalePrice']) && $item['SalePrice'] < $item['RegularPrice'])
+                ? $item['SalePrice']
+                : $item['RegularPrice'];
+            $product->set_price($active);
+
+            // === Stock Quantity & Status (Only if QtyStock is provided) ===
+            if ($item['QtyStock'] !== null) {
+                $qty = (int)$item['QtyStock'];
+
+                $current_qty = $product->get_stock_quantity('edit') ?? 0;
+
+                // Only update if quantity changed
+                if ($current_qty !== $qty) {
+                    // Set quantity: 0 if ≤0, otherwise the actual qty
+                    $set_qty = $qty > 0 ? $qty : 0;
+                    $product->set_stock_quantity($set_qty);
+                    $needs_save = true;
+                }
+
+                // Set stock status based on quantity
+                $new_status = $qty > 0 ? 'instock' : 'outofstock';
+                if ($product->get_stock_status('edit') !== $new_status) {
+                    $product->set_stock_status($new_status);
+                    $needs_save = true;
+                }
+
+                // Ensure manage_stock is yes when tracking quantity
+                if (!$product->get_manage_stock('edit')) {
+                    $product->set_manage_stock(true);
+                    $needs_save = true;
+                }
+            }
+
+            // === Weight ===
+            if ($item['Weight'] !== null && $this->notEqual($product->get_weight('edit'), $item['Weight'])) {
+                $product->set_weight($item['Weight']);
+                $needs_save = true;
+            }
+
+            // === Tiered Pricing ===
             if (!empty($item['PriceTiers']) && is_array($item['PriceTiers'])) {
                 $new_tiers = $item['PriceTiers'];
-                // Sort by qty ascending (important!)
                 usort($new_tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
+
                 $current_tiers = $product->get_meta('_bizuno_price_tiers', true);
                 if ($current_tiers !== $new_tiers) {
                     $product->update_meta_data('_bizuno_price_tiers', $new_tiers);
                     $needs_save = true;
-                    msgDebug("Tiered pricing updated for SKU {$item['SKU']}");
+                    msgDebug("Tiered pricing updated for SKU {$sku}");
                 }
-            } else { // No tiers sent → clear them
+            } else {
                 if ($product->meta_exists('_bizuno_price_tiers')) {
                     $product->delete_meta_data('_bizuno_price_tiers');
                     $needs_save = true;
                 }
             }
-            if ($needs_save) { $product->save(); }
+
+            // Save only if something changed
+            if ($needs_save) {
+                $product->save();
+                $cnt++;
+            }
         }
-        if ($verbose && !empty($missingSKUs)) { msgAdd("Missing in WooCommerce: " . implode(', ', $missingSKUs)); }
+
+        if ($verbose && !empty($missingSKUs)) {
+            msgAdd("Missing in WooCommerce: " . implode(', ', array_unique($missingSKUs)));
+        }
+
+        return [
+            'result' => true,
+            'acted'  => $cnt,
+            'note'   => "Updated $cnt of " . count($items) . " products."
+        ];
     }
 
     private function notEqual($a, $b) // Helper to compare floats/strings safely
     {
-        if ($a === $b) return false;
+        if ($a === $b) { return false; }
         return (float)$a != (float)$b;
     }
 
