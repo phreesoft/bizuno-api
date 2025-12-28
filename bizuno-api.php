@@ -78,9 +78,8 @@ class bizuno_api
             add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
 
             // WooCommerce Filters
-add_filter('woocommerce_quantity_input_args', [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
-add_filter('woocommerce_add_to_cart_validation', [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
-
+            add_filter('woocommerce_quantity_input_args',                    [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
+            add_filter('woocommerce_add_to_cart_validation',                 [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
