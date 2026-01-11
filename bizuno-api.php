@@ -57,7 +57,7 @@ class bizuno_api
         add_action ( 'woocommerce_init',        [ $this, 'ps_woocommerce_init' ] );
         add_action ( 'plugins_loaded',          [ $this, 'ps_plugins_loaded' ] );
         add_action ( 'bizuno_api_image_process',[ $this->product, 'cron_image' ] );
-
+        add_action ( 'admin_notices',           [ $this, 'bizAdminNotices' ], 20 );
         // WordPress Filters
         add_filter ( 'mime_types',              [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
         // WooCommerce hooks
@@ -194,6 +194,14 @@ class bizuno_api
     public function biz_allow_webp_upload($existing_mimes) { // allows image uploads of mime type webp
         $existing_mimes['webp'] = 'image/webp';
         return $existing_mimes;
+    }
+    public function bizAdminNotices() {
+        $user_id = get_current_user_id();
+        $key     = "bizuno_order_download_notices_{$user_id}";
+        $notices = get_transient( $key );
+        if ( ! $notices ) { return; }
+        delete_transient( $key );
+        foreach ( $notices as $n ) { printf( '<div class="%s"><p>%s</p></div>', esc_attr( $n['class'] ), wp_kses_post( $n['message'] ) ); }
     }
     public function bizuno_write_debug() {
         // This runs as the VERY LAST thing WordPress does

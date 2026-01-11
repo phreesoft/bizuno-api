@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-27
+ * @version    7.x Last Update: 2026-01-10
  * @filesource /lib/order.php
  */
 
@@ -116,12 +116,16 @@ class order extends common
     {
         $this->bizuno_api_manual_download($order->id);
     }
-    public function bizuno_api_manual_download($order_id = 0)
-    {
-        if (empty($order_id)) { $order_id = (int)$_GET['biz_order_id']; }
-        $this->orderExport($order_id);
-//      $this->setNotices(); // this is broken, may not need?
-        wp_redirect( esc_url(admin_url( 'edit.php?post_type=shop_order') ) );
+    public function bizuno_api_manual_download( $order_id = 0 ) {
+        if ( empty( $order_id ) ) { $order_id = (int) $_GET['biz_order_id'] ?? 0; }
+        if ( empty( $order_id ) ) {
+            wc_add_notice( __( 'No order ID provided.', 'bizuno-api' ), 'error' );
+            wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
+            exit;
+        }
+        $resp = $this->orderExport( $order_id );
+        $this->setNotices( $resp );
+        wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
         exit;
     }
     public function bizuno_api_order_download($order_id)
@@ -150,6 +154,7 @@ class order extends common
             $wcOrder->save;
         }
         $this->client_close();
+        return $resp;
     }
 
     /**

@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-27
+ * @version    7.x Last Update: 2026-01-10
  * @filesource /lib/admin.php
  */
 
@@ -221,10 +221,10 @@ class admin extends common
         $output = '';
         $countries = localeLoadDB();
         msgDebug("\ncountries = ".print_r($countries, true));
-        foreach ($countries->Locale as $country) {
-            if ($country->Country->ISO3<>$iso3) { continue; }
-            foreach($country->Country->Region as $state) {
-                $output .= '<option value="'.$state->Code.'"'.(in_array($state->Code, (array)$vals)? ' selected' : '').'>'.$state->Title.'</option>'."\n";
+        foreach ($countries['Locale'] as $country) {
+            if ($country['ISO3']<>$iso3 || !isset($country['Regions'])) { continue; }
+            foreach($country['Regions'] as $state) {
+                $output .= '<option value="'.$state['Code'].'"'.(in_array($state['Code'], (array)$vals)? ' selected' : '').'>'.$state['Title'].'</option>'."\n";
             } 
         }
         return $output;

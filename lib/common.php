@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-22
+ * @version    7.x Last Update: 2026-01-10
  * @filesource /lib/common.php
  */
 
@@ -177,30 +177,27 @@ class common
         return $response;
     }
 
-    public function setNotices()
+    public function setNotices($resp=[])
     {
-        global $msgStack;
-        $error = $warning = $success = "";
-        if (empty($msgStack)) {
-            msgAdd("Unexpected response from the Bizuno API: ".print_r($msgStack, true), 'error', true);
-            return;
-        }
-        foreach ($msgStack as $key => $value) {
-            switch ($key) {
-                case 'error':   foreach ($value as $msg) { $error   .= $msg['text']."\n"; } break;
-                case 'caution':
-                case 'warning': foreach ($value as $msg) { $warning .= $msg['text']."\n"; } break;
-                case 'success': foreach ($value as $msg) { $success .= $msg['text']."\n"; } break;
+        msgDebug("\nEntering setNotices with resp = ".print_r($resp, true));
+        if ( empty( $resp['messages'] ) ) { return; }
+        $notices = [];
+        $user_id = get_current_user_id();
+        foreach ( ['error', 'warning', 'info', 'success'] as $type ) {
+            $wc_type = $type==='success' ? 'success' : ( $type === 'error' ? 'error' : 'warning' );
+            msgDebug("\nChecking type = $type");
+            if ( empty( $resp['messages'][$type] ) ) { continue; }
+            foreach ( $resp['messages'][$type] as $msg ) {
+                msgDebug("\nFound one...");
+                $text = trim( $msg['text'] ?? '' );
+                if ( $text ) { $notices[] = [ 'class'=>"notice notice-{$wc_type} is-dismissible", 'message'=>$text ]; }
             }
         }
-        msgDebug("\nWriting the notice queue.\nOrder Download Error: $error"."\nOrder Download Warning: $warning"."\nOrder Download Success: $success");
-        $result = 'error';
-        if (!empty($success)) { $result = 'success'; msgAdd( $success, 'success', true ); }
-        if (!empty($warning)) { $result = 'warning'; msgAdd( $warning, 'warning', true ); }
-        if (!empty($error))   { $result = 'error';   msgAdd( $error,   'error',   true ); }
-        return $result;
+        msgDebug("\nnotices is ready to set transients: ".print_r($notices, true));
+        if ( !empty( $notices ) ) { \set_transient( "bizuno_order_download_notices_{$user_id}", $notices, 45 ); }
     }
-    public function get_meta_values( $meta_key='', $post_type='post', $post_status='publish' ) {
+    public function get_meta_values( $meta_key='', $post_type='post', $post_status='publish' )
+    {
         global $wpdb;
         if ( empty( $meta_key ) ) { return; }
         $sql = "SELECT pm.meta_value FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id
