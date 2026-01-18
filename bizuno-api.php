@@ -72,7 +72,7 @@ class bizuno_api
             add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,    'bizuno_api_order_preview_action' ] );
             add_action ( 'woocommerce_order_action_bizuno_export_action',    [ $this->order,    'bizuno_api_process_order_meta_box_action' ] );
             add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10);
-            add_action ( 'woocommerce_thankyou',                             [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
+            add_action ( 'woocommerce_order_status_processing',              [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
             add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'woocommerce_after_checkout_validation',            [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
@@ -127,6 +127,7 @@ class bizuno_api
         $cleaner  = new \bizuno\cleaner();
         $io       = new \bizuno\io();
         $db       = new \bizuno\db(BIZUNO_DB_CREDS);
+        \bizuno\msgDebug("\nFinished instantiating Bizuno.");
     }
 
     /**

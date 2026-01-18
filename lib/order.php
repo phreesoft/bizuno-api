@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-01-10
+ * @version    7.x Last Update: 2026-01-17
  * @filesource /lib/order.php
  */
 
@@ -103,12 +103,10 @@ class order extends common
     /************ Hooks for WooCommerce Order Admin page ****************/
     public function bizuno_api_post_payment($order_id)
     {
+        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = ".\get_option ( 'bizuno_api_autodownload', false )." and bizuno_order_exported = ".print_r(\get_post_meta ( $order_id, 'bizuno_order_exported' ), true));
         if ( !empty ( \get_post_meta ( $order_id, 'bizuno_order_exported' ) ) ) { return; } // already downloaded, prevents duplicate download errors
-//      \update_post_meta ( $order_id, 'bizuno_order_exported', 0 ); // Does nothing in HPOS
-        if ( in_array ( \get_option ( 'bizuno_api_autodownload', false ), ['yes', 1] ) ) {
+        if ( in_array ( \get_option ( 'bizuno_api_autodownload', false ), ['on', 'yes', 1] ) ) {
             $this->orderExport($order_id); // call return to bit bucket as as all messsages are suppressed
-            $wooOrder = new \WC_Order($order_id);
-            $wooOrder->update_status('processing');
         }
     }
 
@@ -148,10 +146,10 @@ class order extends common
         msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".print_r($resp, true));
         if ( !empty($mainID) ) {
             msgDebug("\nUpdating post meta as a valid ID was returned.");
-            $wcOrder = new \WC_Order($orderID);
+            $wcOrder = \wc_get_order($orderID);
             $wcOrder->update_meta_data('bizuno_order_exported', 'yes');
             $wcOrder->save_meta_data();
-            $wcOrder->save;
+            $wcOrder->save();
         }
         $this->client_close();
         return $resp;
