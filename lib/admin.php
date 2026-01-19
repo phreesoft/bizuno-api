@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-01-10
+ * @version    7.x Last Update: 2026-01-19
  * @filesource /lib/admin.php
  */
 
@@ -29,7 +29,8 @@ namespace bizuno;
 
 class admin extends common
 {
-    public $api_local = false; // ISP Hosted so books are at another url
+    private $bizLib    = "bizuno-wp";
+    public  $api_local = false; // ISP Hosted so books are at another url
 
     function __construct() {
         $this->defaults = ['url'=>'',
@@ -122,6 +123,13 @@ class admin extends common
     }
 
     public function bizuno_api_add_setting_submenu( ) {
+        if ( $this->bizExists ) {
+            add_menu_page( 'Bizuno', 'Bizuno', 'manage_options', 'bizuno', 'bizuno_html', 
+                plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/$this->bizLib/$this->bizLib.php" ), 90);            
+        } else {
+            add_menu_page( 'GET BIZUNO', 'GET BIZUNO', 'manage_options', 'get-bizuno', 'get_bizuno_html',
+                plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/bizuno-api/bizuno-apip.php" ), 1);
+        }
         add_submenu_page( 'options-general.php', 'Bizuno', 'Bizuno', 'manage_options', 'bizuno_api', [$this, 'bizuno_api_setting_submenu']);
     }
 
