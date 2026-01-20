@@ -27,6 +27,8 @@
 
 namespace bizuno;
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 class payment extends common
 {
     public $userID = 0;
@@ -97,7 +99,7 @@ class payment extends common
     public function wallet_list_request($pfID='')
     {
         if ( !$this->bizActive)   { return; }
-        if ( empty ( $pfID ) ) { error_log("Bad payfabric ID passed: $pfID"); return; }
+        if ( empty ( $pfID ) ) { msgAdd("Bad payfabric ID passed: $pfID"); return; }
         $this->client_open();
         $resp = $this->restGo('get', $this->options['url'], 'wallet/list', ['pfID'=>$this->pfID]);
         $this->client_close();

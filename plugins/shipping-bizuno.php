@@ -21,16 +21,18 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-07-20
+ * @version    7.x Last Update: 2026-01-19
  * @filesource /lib/shipping.php
  */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 /***************************************************************************************************/
 //  Adds Bizuno shipping method class to Calculate cart freight charges using Bizuno shipping preferences
 /***************************************************************************************************/
 function bizuno_shipping_method_init() {
-    if ( ! class_exists( 'WC_Bizuno_Shipping_Method' ) ) {
-        class WC_Bizuno_Shipping_Method extends WC_Shipping_Method {
+    if ( ! class_exists( 'Bizuno_API_Shipping_Method' ) ) {
+        class Bizuno_API_Shipping_Method extends WC_Shipping_Method {
             public function __construct( $instance_id = 0 ) { // set the method properties
                 $this->id                 = 'bizuno_shipping';
                 $this->title              = __( 'Bizuno Shipping Calculator', 'bizuno-api' );
@@ -48,9 +50,9 @@ function bizuno_shipping_method_init() {
             public function init_form_fields() { // The settings
                 $this->instance_form_fields = [
                     'enabled'=> [ 'title'=> __( 'Enable', 'bizuno-api' ),'type'=>'checkbox','default'=>'no',
-                        'description'=> __( 'Enable Bizuno Accounting calculated shipping', 'bizuno-pro' ) ],
-                    'title'  => [ 'title'=> __( 'Title', 'bizuno-api' ), 'type'=>'text',    'default'=> __( 'Shipper Preference', 'bizuno-pro' ),
-                        'description'=> __( 'Title to be display on site', 'bizuno-pro' ) ] ];
+                        'description'=> __( 'Enable Bizuno Accounting calculated shipping', 'bizuno-api' ) ],
+                    'title'  => [ 'title'=> __( 'Title', 'bizuno-api' ), 'type'=>'text',    'default'=> __( 'Shipper Preference', 'bizuno-api' ),
+                        'description'=> __( 'Title to be display on site', 'bizuno-api' ) ] ];
             }
             public function calculate_shipping( $package=[] ) { // Connect to Bizuno and Calculate Shipping charges
                 $admin = new \bizuno\admin();

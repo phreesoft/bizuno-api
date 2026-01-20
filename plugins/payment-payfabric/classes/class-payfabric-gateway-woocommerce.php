@@ -52,7 +52,7 @@ class Payfabric_Gateway_Woocommerce
      */
     public function __wakeup()
     {
-        _doing_it_wrong( __FUNCTION__, __( 'Unserializing instances of this class is forbidden.', 'payfabric-gateway-woocommerce' ), '2.0.0' );
+        _doing_it_wrong( __FUNCTION__, 'Unserializing instances of this class is forbidden.', '2.0.0' );
     }
 
     /**

@@ -5,6 +5,8 @@
 // 
 //     require_once "<path>/payfabric/Autoload.php"
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 function payFabric_Autoload($className)
 {
     if ($className === "KLogger") {

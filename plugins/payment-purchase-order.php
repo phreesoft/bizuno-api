@@ -1,27 +1,45 @@
 <?php
 /**
  * WooCommerce - Bizuno API - Payment Method - Purchase Order
- * This class contains the  methods to handle cart payment methods
  *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * DISCLAIMER
+ * Do not edit or add to this file if you wish to upgrade Bizuno to newer
+ * versions in the future. If you wish to customize Bizuno for your
+ * needs please contact PhreeSoft for more information.
+ *
+ * @name       Bizuno ERP
+ * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
- * @author     David Premo, PhreeSoft, Inc.
- * @version    3.x Last Update: 2023-10-21
+ * @license    https://www.gnu.org/licenses/agpl-3.0.txt
+ * @version    7.x Last Update: 2026-01-19
  * @filesource /bizuno-api/lib/payment_purchase_order.php
  */
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 /***************************************************************************************************/
 //  Payment Method - Purchase Order
 /***************************************************************************************************/
 function bizuno_payment_po_method_init() {
-   if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) { return; }
-    if ( class_exists( 'WC_Gateway_PurchOrder' ) ) { return; }
+    if (!class_exists ( 'WooCommerce' ) )           { return; }
+    if ( class_exists ( 'WC_Gateway_PurchOrder' ) ) { return; }
     class WC_Gateway_PurchOrder extends WC_Payment_Gateway {
         public function __construct() {
             $this->id                 = 'purchorder';
-            $this->icon               = apply_filters( 'woocommerce_purchorder_icon', '' );
+//          $this->icon               = apply_filters( 'bizuno_api_purchorder_icon', '' );
             $this->has_fields         = false;
-            $this->method_title       = _x( 'Purchase Order payments', 'Purchase Order payment method', 'bizuno' );
-            $this->method_description = __( 'Accept payment via business Purchase Order. This offline gateway can also be useful to test purchases.', 'bizuno' );
+            $this->method_title       = _x( 'Purchase Order payments', 'Purchase Order payment method', 'bizuno-api' );
+            $this->method_description = __( 'Accept payment via business Purchase Order. This offline gateway can also be useful to test purchases.', 'bizuno-api' );
             $this->init_form_fields();
             $this->init_settings();
             $this->title              = $this->get_option( 'title' );
@@ -33,16 +51,16 @@ function bizuno_payment_po_method_init() {
         }
         public function init_form_fields() {
             $this->form_fields = [
-                'enabled'     => ['title'=>__( 'Enable/Disable', 'woocommerce' ),'type'=>'checkbox','default'=>'no',
-                    'label'      => __( 'Enable PO Checkout', 'woocommerce' )],
-                'title'       => ['title'=>__( 'Title', 'woocommerce' ),         'type'=>'text',    'desc_tip'=>true,
-                    'description'=> __( 'This controls the title which the user sees during checkout.', 'woocommerce' ),
-                    'default'    => _x( 'Purchase Order', 'Purchase Order payment method', 'woocommerce' )],
-                'description' => ['title'=>__( 'Description', 'woocommerce' ),   'type'=>'textarea','desc_tip'=>true,
-                    'description'=> __( 'Payment method description that the customer will see on your checkout.', 'woocommerce' ),
-                    'default'    => __( 'You will receive an invoice with tracking once your order ships.', 'woocommerce' )],
-                'instructions'=> ['title'=>__( 'Instructions', 'woocommerce' ),  'type'=>'textarea','desc_tip'=>true, 'default'=>'',
-                    'description'=> __( 'Instructions that will be added to the thank you page and emails.', 'woocommerce' )]];
+                'enabled'     => ['title'=>__( 'Enable/Disable', 'bizuno-api' ),'type'=>'checkbox','default'=>'no',
+                    'label'      => __( 'Enable PO Checkout', 'bizuno-api' )],
+                'title'       => ['title'=>__( 'Title', 'bizuno-api' ),         'type'=>'text',    'desc_tip'=>true,
+                    'description'=> __( 'This controls the title which the user sees during checkout.', 'bizuno-api' ),
+                    'default'    => _x( 'Purchase Order', 'Purchase Order payment method', 'bizuno-api' )],
+                'description' => ['title'=>__( 'Description', 'bizuno-api' ),   'type'=>'textarea','desc_tip'=>true,
+                    'description'=> __( 'Payment method description that the customer will see on your checkout.', 'bizuno-api' ),
+                    'default'    => __( 'You will receive an invoice with tracking once your order ships.', 'bizuno-api' )],
+                'instructions'=> ['title'=>__( 'Instructions', 'bizuno-api' ),  'type'=>'textarea','desc_tip'=>true, 'default'=>'',
+                    'description'=> __( 'Instructions that will be added to the thank you page and emails.', 'bizuno-api' )]];
         }
         public function thankyou_page() {
             if ( $this->instructions ) { echo wp_kses_post( wpautop( wptexturize( $this->instructions ) ) ); }
@@ -55,7 +73,7 @@ function bizuno_payment_po_method_init() {
         public function process_payment( $order_id ) {
             $order = wc_get_order( $order_id );
             if ( $order->get_total() > 0 ) { // Mark as on-hold (we're awaiting the purchorder).
-                $order->update_status( apply_filters( 'woocommerce_purchorder_process_payment_order_status', 'on-hold', $order ), _x( 'Awaiting check payment', 'Check payment method', 'woocommerce' ) );
+                $order->update_status( apply_filters( 'bizuno_api_purchorder_process_payment_order_status', 'on-hold', $order ), _x( 'Awaiting check payment', 'Check payment method', 'bizuno-api' ) );
             } else { $order->payment_complete(); }
             WC()->cart->empty_cart();
             return ['result'=>'success', 'redirect'=>$this->get_return_url( $order )];
@@ -69,7 +87,7 @@ function bizuno_payment_po_add_to_gateways( $gateways ) {
 }
 add_filter( 'woocommerce_payment_gateways', 'bizuno_payment_po_add_to_gateways' );
 // Disable PO Method if the user is not logged in or doesn't have a contact ID link to Bizuno
-function biz_disable_purchorder( $available_gateways ) {
+function bizuno_api_disable_purchorder( $available_gateways ) {
     $disable = false;
     $user = wp_get_current_user(); // Check to see if user has permission to use this method
     if (empty($user)) { $disable = true; } // not logged in, we're done
@@ -80,5 +98,5 @@ function biz_disable_purchorder( $available_gateways ) {
     if ( $disable ) { unset($available_gateways['purchorder']); }
     return $available_gateways;
 }
-add_filter('woocommerce_available_payment_gateways', 'biz_disable_purchorder', 99, 1);
+add_filter('woocommerce_available_payment_gateways', 'bizuno_api_disable_purchorder', 99, 1);
 /***************************************************************************************************/

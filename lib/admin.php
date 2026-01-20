@@ -27,6 +27,8 @@
 
 namespace bizuno;
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 class admin extends common
 {
     private $bizLib    = "bizuno-wp";
@@ -39,7 +41,7 @@ class admin extends common
             'prefix_order'   => 'WC', 'prefix_customer'=> 'WC',
             'journal_id'     => 0,    'autodownload'   => 'no',
             'tax_enable'     => 'no', 'tax_nexus'      => []];
-        $this->is_post = isset($_POST['bizuno_api_form_updated']) && $_POST['bizuno_api_form_updated'] == 'Y' ? true : false;
+        $this->is_post = ( isset( $_POST['_wpnonce'] ) && wp_verify_nonce( $_POST['_wpnonce'], 'api-settings_' . $user_id ) && current_user_can( 'edit_user', $user_id ) ) ? true : false;
         $this->options = $this->processOptions($this->defaults);
     }
 
@@ -52,15 +54,15 @@ class admin extends common
     public function ps_my_business_link_my_account( $items ) {
 
         unset($items['orders'], $items['downloads'], $items['edit-address'], $items['payment-methods'], $items['downloads'], $items['edit-account'], $items['customer-logout']);
-        $items['dashboard']       = __( 'Dashboard', 'woocommerce' );
-        $items['edit-account']    = __( 'Account details', 'woocommerce' );
-        $items['my-business']     = __( 'My Business', 'phreesoft' ); // New tab
-        $items['biz-users']       = __( 'Business Users', 'phreesoft' ); // New tab
-        $items['orders']          = __( 'Orders', 'woocommerce' );
-        $items['edit-address']    = _n( 'Addresses', 'Address', (int) wc_shipping_enabled(), 'woocommerce' );
-        $items['payment-methods'] = __( 'Payment methods', 'woocommerce' );
-        $items['downloads']       = __( 'Downloads', 'woocommerce' );
-        $items['customer-logout'] = __( 'Logout', 'woocommerce' );
+        $items['dashboard']       = __( 'Dashboard', 'bizuno-api' );
+        $items['edit-account']    = __( 'Account details', 'bizuno-api' );
+        $items['my-business']     = __( 'My Business', 'bizuno-api' ); // New tab
+        $items['biz-users']       = __( 'Business Users', 'bizuno-api' ); // New tab
+        $items['orders']          = __( 'Orders', 'bizuno-api' );
+        $items['edit-address']    = _n( 'Addresses', 'Address', (int) wc_shipping_enabled(), 'bizuno-api' );
+        $items['payment-methods'] = __( 'Payment methods', 'bizuno-api' );
+        $items['downloads']       = __( 'Downloads', 'bizuno-api' );
+        $items['customer-logout'] = __( 'Logout', 'bizuno-api' );
         return $items;
     }
 
@@ -91,8 +93,7 @@ class admin extends common
         if ($column == 'bizuno_download') {
             $exported = $the_order->get_meta( 'bizuno_order_exported', true );
             if (empty($exported)) {
-                $tip = '';
-                echo '<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">'.__( 'No', 'bizuno_api' ).'</button>';
+                echo wp_kses_post('<button type="button" class="order-status status-processing tips" data-tip="">') . esc_html ( __( 'No', 'bizuno-api' ) ) . wp_kses_post ( '</button>' );
             } else { echo 'X&nbsp;'; }
         }
     }
@@ -103,8 +104,8 @@ class admin extends common
             msgDebug("\nread meta_value = ".print_r($exported, true));
             if (empty($exported) && !in_array($status, ['cancelled', 'on-hold'])) {
                 $tip = "status = $status";
-                echo '<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">'.__( 'No', 'bizuno_api' ).'</button>';
-            } else { echo '&nbsp;'; }
+                echo wp_kses_post('<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">') . esc_html ( __( 'No', 'bizuno-api' ) ) . wp_kses_post ( '</button>' );
+            } else { echo esc_html('&nbsp;'); }
         }
     }
     
@@ -114,7 +115,7 @@ class admin extends common
     }
     public function bizuno_api_order_preview_action() {
         $url = admin_url( 'admin-ajax.php?action=bizuno_api_order_download' );
-        echo '<span style="display:{{ data.bizuno_order_exported }}"><a class="button button-primary button-large" onClick="window.location = \''.$url.'&biz_order_id={{ data.data.id }}\';">'.__( 'Export order to Bizuno', 'bizuno-api' ).'</a></span>'."\n";
+        echo wp_kses_post('<span style="display:{{ data.bizuno_order_exported }}"><a class="button button-primary button-large" onClick="window.location = \''.$url.'&biz_order_id={{ data.data.id }}\';">').esc_html( __( 'Export order to Bizuno', 'bizuno-api' ) ).'</a></span>'."\n";
     }
     public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
         if (get_post_meta( get_the_ID(), 'bizuno_order_exported', true ) ) { return $actions; }
@@ -123,7 +124,7 @@ class admin extends common
     }
 
     public function bizuno_api_add_setting_submenu( ) {
-        if ( $this->bizExists ) {
+        if ( defined( 'BIZUNO_FS_LIBRARY' ) ) {
             add_menu_page( 'Bizuno', 'Bizuno', 'manage_options', 'bizuno', 'bizuno_html', 
                 plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/$this->bizLib/$this->bizLib.php" ), 90);            
         } else {
@@ -134,13 +135,13 @@ class admin extends common
     }
 
     public function bizuno_api_setting_submenu() {
-        if (!current_user_can('manage_options')) { wp_die( __('You do not have sufficient permissions to access this page.') ); }
+        if (!current_user_can('manage_options')) { wp_die( esc_html ( __('You do not have sufficient permissions to access this page.', 'bizuno-api') ) ); }
         if (!empty($this->is_post)) {
-            echo '<div class="updated"><p><strong>'.__('Settings Saved.', 'bizuno-api' ).'</strong></p></div>';
+            echo '<div class="updated"><p><strong>'.esc_html ( __('Settings Saved.', 'bizuno-api' ) ) .'</strong></p></div>';
         }
         $html = '';
         $html.= '
-<div class="wrap"><h2>'.__( 'Bizuno Settings', 'phreesoft' ).'</h2>
+<div class="wrap"><h2>'.__( 'Bizuno Settings', 'bizuno-api' ).'</h2>
   <p>The Bizuno interface passes order, product and other information between your business external website and internal Bizuno site.</p>
   <form name="formBizAPI" method="post" action="">
     <input type="hidden" name="bizuno_api_form_updated" value="Y">
@@ -221,7 +222,7 @@ class admin extends common
     <input type="submit" name="submit" id="submit" class="button button-primary" value="Save Changes">
   </form>
 </div>';
-        echo $html;
+        echo wp_kses_post($html);
     }
 
     private function getStates($iso3='USA', $vals=[])

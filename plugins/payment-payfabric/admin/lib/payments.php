@@ -1,6 +1,6 @@
 <?php
 
-class payments extends payFabric_ResponseBase
+class payFabric_payments extends payFabric_ResponseBase
 {
 
     private $request;

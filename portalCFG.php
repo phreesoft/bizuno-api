@@ -27,6 +27,8 @@
 
 namespace bizuno;
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 global $wpdb;
 
 // Business Specific
@@ -43,8 +45,9 @@ if ( !defined( 'BIZUNO_FS_ASSETS' ) )   { define( 'BIZUNO_FS_ASSETS',   WP_PLUGI
 if ( !defined( 'BIZUNO_URL_AJAX' ) )    { define( 'BIZUNO_URL_AJAX',    admin_url(). 'admin-ajax.php?action=bizuno_ajax' ); }
 if ( !defined( 'BIZUNO_URL_API' ) )     { define( 'BIZUNO_URL_API',     plugin_dir_url( __FILE__ ) . "portalAPI.php?bizRt=" ); }
 if ( !defined( 'BIZUNO_URL_FS' ) )      { define( 'BIZUNO_URL_FS',      plugin_dir_url( __FILE__ ) . "portalAPI.php?bizRt=portal/api/fs&src=" ); }
-if ( !defined( 'BIZUNO_URL_PORTAL' ) )  { define( 'BIZUNO_URL_PORTAL',  home_url() . "/$this->bizSlug?" ); } // full url to Bizuno root folder
+if ( !defined( 'BIZUNO_URL_PORTAL' ) )  { define( 'BIZUNO_URL_PORTAL',  home_url() . "/bizuno?" ); } // full url to Bizuno root folder
 if ( !defined( 'BIZUNO_URL_SCRIPTS' ) ) { define( 'BIZUNO_URL_SCRIPTS', plugins_url()."/$this->bizLib/scripts/" );  } // contains third party js and css files
+if ( !defined( 'BIZUNO_URL_VIEW' ) )    { define( 'BIZUNO_URL_VIEW',    WP_PLUGIN_URL . "/$this->bizLib" );  } // contains Bizuno images, icons, css and js
 
 // Special case for WordPress
 if ( !defined( 'BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true); } // WordPress adds slashes to all input data
@@ -52,3 +55,10 @@ if ( !defined( 'BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true)
 // Initialize & load Bizuno library
 require_once ( BIZUNO_FS_LIBRARY . 'portal/controller.php' );
 require_once ( BIZUNO_FS_LIBRARY . 'bizunoCFG.php' );
+
+if (!isset($msgStack)|| !($msgStack instanceof \bizuno\messageStack)){ $msgStack = new \bizuno\messageStack(); }
+if (!isset($cleaner) || !($cleaner  instanceof \bizuno\cleaner))     { $cleaner  = new \bizuno\cleaner(); }
+if (!isset($io)      || !($io       instanceof \bizuno\io))          { $io       = new \bizuno\io(); }
+if (!isset($db)      || !($db       instanceof \bizuno\db))          { $db       = new \bizuno\db(BIZUNO_DB_CREDS); }
+
+msgDebug("\nFinished instantiating Bizuno.");

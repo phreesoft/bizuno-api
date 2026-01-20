@@ -17,9 +17,9 @@ if (!defined('ABSPATH')) {
 }
 
 ?>
-<h3><?php echo $this->method_title; ?></h3>
+<h3><?php echo wp_kses_post ( $this->method_title ); ?></h3>
 
-<?php echo (!empty($this->method_description)) ? wpautop($this->method_description) : ''; ?>
+<?php echo (!empty($this->method_description)) ? wp_kses_post ( wpautop($this->method_description) ) : ''; ?>
 
 <table class="form-table">
     <?php $this->generate_settings_html(); ?>

@@ -29,119 +29,119 @@ $show_auth_fields = '1';
 $integration_show = '1';
 
 
-$admin_fields_array = array();
-$admin_fields_array['enabled'] = array(
-    'title' => __('Enable/Disable', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array = array();
+$payfabric_fields_array['enabled'] = array(
+    'title' => __('Enable/Disable', 'bizuno-api'),
     'type' => 'checkbox',
-    'label' => __('Enable PayFabric gateway', 'payfabric-gateway-woocommerce'),
-    'description' => __('Enable or disable the gateway.', 'payfabric-gateway-woocommerce'),
+    'label' => __('Enable PayFabric gateway', 'bizuno-api'),
+    'description' => __('Enable or disable the gateway.', 'bizuno-api'),
     'desc_tip' => true,
     'default' => 'no'
 );
-$admin_fields_array['title'] = array(
-    'title' => __('Title', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['title'] = array(
+    'title' => __('Title', 'bizuno-api'),
     'type' => 'text',
-    'description' => __('The title which the user sees during checkout.', 'payfabric-gateway-woocommerce'),
+    'description' => __('The title which the user sees during checkout.', 'bizuno-api'),
     'desc_tip' => true,
-    'default' => __('PayFabric', 'payfabric-gateway-woocommerce')
+    'default' => __('PayFabric', 'bizuno-api')
 );
 
-$admin_fields_array['description'] = array(
-    'title' => __('Description', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['description'] = array(
+    'title' => __('Description', 'bizuno-api'),
     'type' => 'textarea',
-    'description' => __('The description which the user sees during checkout.', 'payfabric-gateway-woocommerce'),
+    'description' => __('The description which the user sees during checkout.', 'bizuno-api'),
     'desc_tip' => true,
-    'default' => __("Pay via PayFabric", 'payfabric-gateway-woocommerce')
+    'default' => __("Pay via PayFabric", 'bizuno-api')
 );
 
-$admin_fields_array['testmode'] = array(
-    'title' => __('PayFabric test mode', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['testmode'] = array(
+    'title' => __('PayFabric test mode', 'bizuno-api'),
     'type' => 'checkbox',
-    'label' => __('Enable test mode', 'payfabric-gateway-woocommerce'),
-    'description' => __('Enable or disable the test mode for the gateway to test the payment method.', 'payfabric-gateway-woocommerce'),
+    'label' => __('Enable test mode', 'bizuno-api'),
+    'description' => __('Enable or disable the test mode for the gateway to test the payment method.', 'bizuno-api'),
     'desc_tip' => true,
     'default' => 'yes'
 );
-$admin_fields_array['advanced'] = array(
-    'title' => __('Advanced options', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['advanced'] = array(
+    'title' => __('Advanced options', 'bizuno-api'),
     'type' => 'title',
     'description' => '',
 );
-$admin_fields_array['api_merchant'] = array(
-    'title' => __('Merchant data', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['api_merchant'] = array(
+    'title' => __('Merchant data', 'bizuno-api'),
     'type' => 'title',
-    'description' => __('In this section You can set up your merchant data for PayFabric system.', 'payfabric-gateway-woocommerce')
+    'description' => __('In this section You can set up your merchant data for PayFabric system.', 'bizuno-api')
 );
-$admin_fields_array['api_merchant_id'] = array(
-    'title' => __('Device ID', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['api_merchant_id'] = array(
+    'title' => __('Device ID', 'bizuno-api'),
     'type' => 'text',
-    'description' => __('Device ID from PayFabric', 'payfabric-gateway-woocommerce'),
+    'description' => __('Device ID from PayFabric', 'bizuno-api'),
     'desc_tip' => true,
     'default' => ''
 );
-$admin_fields_array['api_password'] = array(
-    'title' => __('Password', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['api_password'] = array(
+    'title' => __('Password', 'bizuno-api'),
     'type' => 'password',
-    'description' => __('Device password from PayFabric', 'payfabric-gateway-woocommerce'),
+    'description' => __('Device password from PayFabric', 'bizuno-api'),
     'desc_tip' => true,
     'default' => ''
 );
 
 if ($integration_show) {
-    $admin_fields_array['api_payment_modes'] = array(
-        'title' => __('Payment mode', 'payfabric-gateway-woocommerce'),
+    $payfabric_fields_array['api_payment_modes'] = array(
+        'title' => __('Payment mode', 'bizuno-api'),
         'type' => 'select',
-        'description' => sprintf(__('Payment Mode controls the presentation of the Hosted Payment Page (HPP):<br>
+        'description' => sprintf('Payment Mode controls the presentation of the Hosted Payment Page (HPP):<br>
             &nbsp;&nbsp;&nbsp;&nbsp;<b>• Direct:</b> HPP shown directly on the checkout page, payment made when placing order. (A theme is required, see %sGuide%s).<br>
             &nbsp;&nbsp;&nbsp;&nbsp;<b>• Iframe:</b> HPP is inside the shopping site page.<br>
-            &nbsp;&nbsp;&nbsp;&nbsp;<b>• Redirect:</b> Shopping site redirects user to the HPP.'), '<a href="https://github.com/PayFabric/WooCommerce-Plugin#readme" target="_blank">', '</a>' ),
+            &nbsp;&nbsp;&nbsp;&nbsp;<b>• Redirect:</b> Shopping site redirects user to the HPP.', '<a href="https://github.com/PayFabric/WooCommerce-Plugin#readme" target="_blank">', '</a>' ),
         'desc_tip' => false,
         'default' => 2,
         'options' => array(
-            2 => __('Direct', 'payfabric-gateway-woocommerce'),
-            0 => __('Iframe', 'payfabric-gateway-woocommerce'),
-            1 => __('Redirect', 'payfabric-gateway-woocommerce')
+            2 => __('Direct', 'bizuno-api'),
+            0 => __('Iframe', 'bizuno-api'),
+            1 => __('Redirect', 'bizuno-api')
         )
     );
 }
 
 if ($show_auth_fields) {
     //Purchase or Auth
-    $admin_fields_array['api_payment_action'] = array(
-        'title' => __('Payment action', 'payfabric-gateway-woocommerce'),
+    $payfabric_fields_array['api_payment_action'] = array(
+        'title' => __('Payment action', 'bizuno-api'),
         'type' => 'select',
-        'description' => __('Specify transaction type.', 'payfabric-gateway-woocommerce'),
+        'description' => __('Specify transaction type.', 'bizuno-api'),
         'desc_tip' => true,
         'default' => 0,
         'options' => array(
-            __('Purchase', 'payfabric-gateway-woocommerce'),
-            __('Auth', 'payfabric-gateway-woocommerce')
+            __('Purchase', 'bizuno-api'),
+            __('Auth', 'bizuno-api')
         )
     );
 }
 //choose the default paid order status
-$admin_fields_array['api_success_status'] = array(
-    'title' => __('Success status', 'payfabric-gateway-woocommerce'),
+$payfabric_fields_array['api_success_status'] = array(
+    'title' => __('Success status', 'bizuno-api'),
     'type' => 'select',
-    'description' => __('Status of order after successful payment.', 'payfabric-gateway-woocommerce'),
+    'description' => __('Status of order after successful payment.', 'bizuno-api'),
     'desc_tip' => true,
     'default' => 0,
     'options' => array(
-        __('Processing', 'payfabric-gateway-woocommerce'),
-        __('Completed', 'payfabric-gateway-woocommerce')
+        __('Processing', 'bizuno-api'),
+        __('Completed', 'bizuno-api')
     )
 );
 
 if ($show_log_field) {
-    $admin_fields_array['log_mode'] = array(
-        'title' => __('Logging', 'payfabric-gateway-woocommerce'),
+    $payfabric_fields_array['log_mode'] = array(
+        'title' => __('Logging', 'bizuno-api'),
         'type' => 'checkbox',
-        'label' => __('Enable log debug', 'payfabric-gateway-woocommerce'),
-        'description' => __('Log payment events, such as gateway transaction callback, if enabled, log file will be found inside: wp-content/uploads/wc-logs', 'payfabric-gateway-woocommerce'),
+        'label' => __('Enable log debug', 'bizuno-api'),
+        'description' => __('Log payment events, such as gateway transaction callback, if enabled, log file will be found inside: wp-content/uploads/wc-logs', 'bizuno-api'),
         'desc_tip' => false,
         'default' => 'no'
     );
 }
 
 
-return $admin_fields_array;
+return $payfabric_fields_array;

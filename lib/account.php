@@ -26,7 +26,10 @@
  */
 
 
+
 namespace bizuno;
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class account extends common
 {
@@ -42,12 +45,13 @@ class account extends common
     public function bizunoUserEdit( $user )
     {
         if (!is_admin()) { return; }
-        $html  = '<h3 class="heading">Bizuno Customer Settings</h3>';
+        $html  = '<h3 class="heading">'.esc_html( __('Bizuno Customer Settings', 'bizuno-api' ) ).'</h3>';
         $html .= '<table class="form-table">';
-        $html .= '  <tr><th><label for="bizuno_contact_id">Link to Bizuno Customer ID:</label></th>';
+        $html .= '  <tr><th><label for="bizuno_contact_id">'.esc_html( __('Link to Bizuno Customer ID:', 'bizuno-api' ) ).'</label></th>';
         $html .= '      <td><input type="text" name="bizuno_contact_id" id="bizuno_contact_id" value="'.\get_user_meta( $user->ID, 'bizuno_contact_id', true).'" /></td></tr>';
         $html .= '</table>';
-        echo $html;
+        $html .= wp_nonce_field( 'update-user_' . $user->ID, '_wpnonce', true, true );
+        echo wp_kses_post($html);
     }
 
     /**
@@ -57,10 +61,11 @@ class account extends common
      */
     public function bizunoUserSave( $user_id )
     {
-        if (!is_admin()) { return; }
-        $user = \get_userdata( $user_id );
-        if (empty($user)) { return; }
-        \update_user_meta( $user_id, 'bizuno_contact_id', !empty($_POST['bizuno_contact_id']) ? $_POST['bizuno_contact_id'] : '' );
+        if ( ! isset( $_POST['_wpnonce'] ) || ! wp_verify_nonce( $_POST['_wpnonce'], 'update-user_' . $user_id ) ) { return; }
+        if ( ! current_user_can( 'edit_user', $user_id ) ) { return; }
+        $contact_id = isset( $_POST['bizuno_contact_id'] ) ? sanitize_text_field( $_POST['bizuno_contact_id'] ) : '';
+        $old_value = get_user_meta( $user_id, 'bizuno_contact_id', true );
+        if ( $contact_id !== $old_value ) { \update_user_meta( $user_id, 'bizuno_contact_id', $contact_id ); }
     }
 
     /***********************************************   ************************************************/
@@ -99,12 +104,9 @@ class account extends common
             $resp = $this->restGo('get', $this->options['url'], 'account/address/list', ['email'=>$user->user_email]);
             msgDebug("\nReceived back account from REST: ".print_r($resp, true));
         }
-        msgDebug("\nafter REST");
         if (isset($resp['message'])) { msgMerge($resp['message']); }
         // renders the address page
-        msgDebug("\nFinakl echo");
-        echo 'Response: '.print_r($resp, true).'<br />';
-        echo 'Address Book here';
+        echo esc_html( __('Address Book here', 'bizuno-api' ) );
         msgDebugWrite();
     }
 
@@ -151,8 +153,7 @@ class account extends common
         }
         if (isset($resp['message'])) { msgMerge($resp['message']); }
         // renders the order history page
-        echo 'Response: '.print_r($resp, true).'<br />';
-        echo 'order history here';
+        echo esc_html( __('Order history here', 'bizuno-api' ) );
         $this->shop_close();
     }
 

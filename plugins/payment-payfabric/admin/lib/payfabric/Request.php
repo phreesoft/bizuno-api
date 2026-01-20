@@ -1,70 +1,123 @@
 <?php
-
+/**
+ * PayFabric request handler – using WordPress HTTP API instead of raw cURL
+ */
 class payFabric_Request extends payFabric_Builder
 {
-
     protected function sendXml()
     {
         if (is_object(payFabric_RequestBase::$logger)) {
             self::$logger->logInfo('_data has been generated');
-            self::$logger->logDebug(' ', json_encode($this->_data));
+            self::$logger->logDebug('Request body:', json_encode($this->_data));
         }
-        $curl = curl_init($this->endpoint);
-        $opt = array(
-            CURLOPT_HTTPHEADER => array('Content-Type: application/json',
-                'Authorization: ' . $this->merchantId . '|' . $this->merchantKey
-            ),
-            CURLOPT_SSL_VERIFYHOST => self::$sslVerifyHost,
-            CURLOPT_SSL_VERIFYPEER => self::$sslVerifyPeer,
-            CURLOPT_CONNECTTIMEOUT => $this->timeout,
-            CURLOPT_RETURNTRANSFER => 1);
-        if (!empty($this->_data)) {
-            $opt[CURLOPT_POST] = 1;
-            $opt[CURLOPT_POSTFIELDS] = json_encode($this->_data);
-        }
-        curl_setopt_array($curl, $opt);
-        $this->xmlResponse = curl_exec($curl);
+
+        $headers = [
+            'Content-Type'  => 'application/json',
+            'Authorization' => $this->merchantId . '|' . $this->merchantKey,
+        ];
+
+        $args = [
+            'method'      => !empty($this->_data) ? 'POST' : 'GET',
+            'headers'     => $headers,
+            'body'        => !empty($this->_data) ? json_encode($this->_data) : '',
+            'timeout'     => $this->timeout,
+            'sslverify'   => self::$sslVerifyPeer && self::$sslVerifyHost,
+            'httpversion' => '1.1',
+            'redirection' => 5,
+        ];
+
+        // Execute request
+        $response = wp_remote_request($this->endpoint, $args);
+
         if (is_object(payFabric_RequestBase::$logger)) {
-            self::$logger->logInfo('Sending data to ' . $this->endpoint);
+            self::$logger->logInfo('Sending request to: ' . $this->endpoint);
         }
-        $curlInfo = curl_getinfo($curl);
-        curl_close($curl);
-        if (payFabric_RequestBase::$debug == true) {
-            $this->printDebug($curlInfo);
-        }
-        if ($this->xmlResponse) {
+
+        // Handle WP_Error
+        if (is_wp_error($response)) {
+            $error_message = $response->get_error_message();
             if (is_object(payFabric_RequestBase::$logger)) {
-                self::$logger->logInfo('Response received');
-                self::$logger->logDebug(' ', $this->xmlResponse);
+                self::$logger->logError('HTTP request failed: ' . $error_message);
+            }
+            throw new UnexpectedValueException(
+                esc_html( '[PayFabric Class] Connection error with PayFabric server: ' . $error_message ), 503 );
+        }
+
+        // Get response body
+        $this->xmlResponse = wp_remote_retrieve_body($response);
+        $status_code       = wp_remote_retrieve_response_code($response);
+
+        if (payFabric_RequestBase::$debug) {
+            $this->printDebug([
+                'http_code'   => $status_code,
+                'total_time'  => wp_remote_retrieve_response_message($response), // approximate
+                'headers'     => wp_remote_retrieve_headers($response),
+            ]);
+        }
+
+        if ($this->xmlResponse && $status_code >= 200 && $status_code < 300) {
+            if (is_object(payFabric_RequestBase::$logger)) {
+                self::$logger->logInfo('Response received (HTTP ' . $status_code . ')');
+                self::$logger->logDebug('Response body:', $this->xmlResponse);
             }
             return $this->xmlResponse;
-        } else {
-            throw new UnexpectedValueException('[PayFabric Class] Connection error with PayFabric server!', 503);
         }
+
+        // Error handling
+        $error_msg = $this->xmlResponse ?: 'Empty response from server';
+        if (is_object(payFabric_RequestBase::$logger)) {
+            self::$logger->logError('Request failed - HTTP ' . $status_code . ': ' . $error_msg);
+        }
+
+        throw new UnexpectedValueException(
+            esc_html ( '[PayFabric Class] PayFabric server returned error (HTTP ' . $status_code . '): ' . $error_msg ), esc_html ( $status_code ) ?: 503 );
     }
 
-    private function printDebug($param, $_mpInfo = '')
+    /**
+     * Debug output – now safe for WordPress (escapes output)
+     */
+    private function printDebug($info)
     {
-        $this->debugger("Target URL: " . $this->endpoint);
-        $this->debugger("Request: " . htmlentities(mb_convert_encoding(json_encode($this->_data), "UTF-8")));
-        if ($param) {
-            $this->debugger("Response: " . htmlentities(mb_convert_encoding($this->xmlResponse, "UTF-8")));
-            $this->debugger("Response time: " . round($param["total_time"], 3) . " secs.");
-        } else {
-            $this->debugger("Response: Connection problems with PayFabric!");
-            foreach ($param as $k => $v) {
-                if ($k != "certinfo") {
-                    $_mpInfo .= $k . ": " . $v . ", ";
-                }
+        $output = [];
+
+        $output[] = "Target URL: " . esc_html($this->endpoint);
+        $output[] = "Request body: " . esc_html(json_encode($this->_data ?? []));
+
+        if (!empty($info)) {
+            $output[] = "HTTP Code: " . esc_html($info['http_code'] ?? 'N/A');
+            $output[] = "Response: " . esc_html($this->xmlResponse ?? 'No response');
+            $output[] = "Response time: ~" . esc_html($info['total_time'] ?? 'N/A') . " sec";
+            if (!empty($info['headers'])) {
+                $output[] = "Response headers: " . esc_html(print_r($info['headers'], true));
             }
-            $this->debugger("cURL_getinfo data: " . $_mpInfo);
+        } else {
+            $output[] = "Connection problems with PayFabric!";
+        }
+
+        // Output safely in admin context or log
+        if (is_admin() && current_user_can('manage_options')) {
+            echo '<div style="background:#fff9c0; padding:10px; border:1px solid #f0c000; margin:10px 0;">';
+            echo '<strong>PayFabric Debug:</strong><br>';
+            echo '<pre>' . esc_html ( implode("\n", $output) ) . '</pre>';
+            echo '</div>';
         }
     }
 
+    /**
+     * Safe debug output helper (replaces original debugger)
+     */
     private function debugger($string)
     {
-        $_d = date('Y-m-d H:m:s', substr(microtime(), "11", "10")) . ":" . substr(microtime(), "2", "5");
-        echo("<br>" . str_repeat("-", 20) . "<br>[" . $_d . "] " . $string . "<br>" . str_repeat("-", 20) . "<br>");
-    }
+        // Use wp_kses_post for safe HTML output if needed
+        $timestamp = gmdate('Y-m-d H:i:s');
+        $safe_string = esc_html($string);
 
+        if (is_admin() && current_user_can('manage_options')) {
+            echo wp_kses_post(
+                '<br>' . str_repeat('-', 20) . '<br>' .
+                "[$timestamp] " . $safe_string . '<br>' .
+                str_repeat('-', 20) . '<br>'
+            );
+        }
+    }
 }

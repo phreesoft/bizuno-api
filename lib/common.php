@@ -27,6 +27,8 @@
 
 namespace bizuno;
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 class common
 {
     public $api_local = false;
@@ -115,14 +117,66 @@ class common
         return $rate;
     }
 
-    /**
-     * THIS NEEDS TO BE MOVED TO THE SHARED cURL ($io) which has a different set of request variables and sequences
+    /** 
      * @param type $type
      * @param type $data
      * @param type $endPoint
      * @return type
      */
-    function cURL($type='get', $data=[], $endPoint='')
+    function cURL( $type='get', $data=[], $endPoint='' ) {
+        msgDebug( "\nEntering cURL (WP HTTP API) with endPoint = $endPoint and options = " . print_r( $this->options, true ) );
+        $base_url = $this->options['url'] ?? '';
+        $url      = trailingslashit( $base_url ) . '?bizRt=portal/api/' . $endPoint;
+        // Build query string for GET
+        $rData = is_array( $data ) ? http_build_query( $data ) : $data;
+        if ( 'get' === strtolower( $type ) && ! empty( $rData ) ) {
+            $url .= ( strpos( $url, '?' ) === false ? '?' : '&' ) . $rData;
+        }
+        // Authentication: Use Basic Auth header (secure replacement for custom BIZUSER/BIZPASS)
+        $username = $this->options['rest_user_name'] ?? '';
+        $password = $this->options['rest_user_pass'] ?? '';
+        $auth     = base64_encode( $username . ':' . $password );
+        $headers = [
+            'Authorization' => 'Basic ' . $auth,
+            'Accept'        => 'application/json',           // Assume JSON API
+            'User-Agent'    => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . BIZUNO_VERSION . '; +https://www.bizuno.com)'];
+        // If you had other headers/cookies in $opts, merge here
+        // $headers = array_merge( $headers, $additional_headers );
+        // WP HTTP args
+        $args = [
+            'method'=>strtoupper($type), 'headers'=>$headers, 'timeout'=>30, 'sslverify'=>true, 'httpversion'=>'1.1', 'blocking'=>true];
+        if ( 'POST' === strtoupper( $type ) ) { // POST body
+            $args['body'] = $rData;  // Already a string (form-urlencoded or raw JSON)
+            // If JSON payload needed: $args['body'] = wp_json_encode( $data );
+            //     $args['headers']['Content-Type'] = 'application/json';
+        }
+        msgDebug( "\nReady to send to url = $url" );
+        // Execute request
+        if ( 'POST' === strtoupper( $type ) ) { $response = wp_remote_post( $url, $args ); }
+        else                                  { $response = wp_remote_get( $url, $args ); }
+        if ( is_wp_error( $response ) ) { // Handle WP_Error
+            $error_msg = 'WP HTTP Error: ' . $response->get_error_message();
+            msgDebug( $error_msg );
+            msgAdd( $error_msg, 'error' );
+            return false;  // or return null / array() as needed
+        }
+        $body       = wp_remote_retrieve_body( $response ); // Get useful parts
+        $status_code= wp_remote_retrieve_response_code( $response );
+        if ( 200 !== $status_code ) { msgAdd( "Received HTTP $status_code from API.", 'caution' ); }
+        if ( empty( $body ) )       { msgAdd( "Oops! Received an empty response. Likely a connection/protocol issue (e.g., TLS/ALPN mismatch).", 'caution' ); }
+        msgDebug( "\nAPI Common received back from REST: " . print_r( $body, true ) );
+        // If response has 'message' key (your original logic)
+        $decoded = json_decode( $body, true );
+        if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['message'] ) ) {
+            msgDebug( "\nMerging the msgStack!" );
+            msgMerge( $decoded['message'] );
+            return $decoded;  // Return decoded array for easier use
+        }
+        // Fallback: return raw body (or decode if always JSON)
+        return $body;  // Or json_decode( $body, true ) if you expect JSON
+    }
+
+/*    function cURL($type='get', $data=[], $endPoint='')
     {
         msgDebug("\nEntering cURL with endPoint = $endPoint and options = ".print_r($this->options, true));
         $url    = $this->options['url'].'?bizRt=portal/api/'.$endPoint;
@@ -175,7 +229,7 @@ class common
             msgMerge($response['message']);
         }
         return $response;
-    }
+    } */
 
     public function setNotices($resp=[])
     {
@@ -200,9 +254,14 @@ class common
     {
         global $wpdb;
         if ( empty( $meta_key ) ) { return; }
-        $sql = "SELECT pm.meta_value FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id
-            WHERE pm.meta_key = %s AND p.post_type = %s AND p.post_status = %s";
-        $meta_values = $wpdb->get_col( $wpdb->prepare( $sql , $meta_key, $post_type, $post_status ) );
+        $cache_key   = 'bizuno_meta_values_' . md5( $meta_key . '|' . $post_type . '|' . $post_status );
+        $meta_values = get_transient( $cache_key );
+        if ( false === $meta_values ) {
+            $meta_values = $wpdb->get_col(
+                $wpdb->prepare( "SELECT pm.meta_value FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id 
+                     WHERE pm.meta_key = %s AND p.post_type = %s AND p.post_status = %s", $meta_key, $post_type, $post_status ) );
+            set_transient( $cache_key, $meta_values, 3600 ); // 1 Hour
+        }
         return $meta_values;
     }
 }

@@ -27,6 +27,8 @@
 
 namespace bizuno;
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 class sales_tax extends common
 {
     function __construct($options=[])

@@ -21,11 +21,13 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2025, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-19
+ * @version    7.x Last Update: 2026-01-19
  * @filesource /lib/shipping.php
  */
 
 namespace bizuno;
+
+if ( ! defined( 'ABSPATH' ) ) exit;
 
 class shipping extends common
 {
@@ -51,26 +53,26 @@ class shipping extends common
     }
     
     public function add_bizuno_shipping_method( $methods ) { // Add the method to the list of available Methods
-        $methods['bizuno_shipping'] = 'WC_Bizuno_Shipping_Method';
+        $methods['bizuno_shipping'] = 'Bizuno_API_Shipping_Method';
         return $methods;
     }
 
     public function bizuno_validate_order( $posted )   {
         $packages = WC()->shipping->get_packages();
         $chosen_methods = WC()->session->get( 'chosen_shipping_methods' );
-        if ( is_array( $chosen_methods ) && in_array( 'tutsplus', $chosen_methods ) ) {
+        if ( is_array( $chosen_methods ) && in_array( 'bizplus', $chosen_methods ) ) {
             foreach ( $packages as $i => $package ) {
-                if ( $chosen_methods[ $i ] != "tutsplus" ) { continue; }
-                $TutsPlus_Shipping_Method = new TutsPlus_Shipping_Method();
-                $weightLimit = (int) $TutsPlus_Shipping_Method->settings['weight'];
+                if ( $chosen_methods[ $i ] != 'bizplus' ) { continue; }
+                $BizPlus_Shipping_Method = new BizPlus_Shipping_Method();
+                $weightLimit = (int) $BizPlus_Shipping_Method->settings['weight'];
                 $weight = 0;
-                foreach ( $package['contents'] as $item_id => $values ) {
+                foreach ( $package['contents'] as $values ) {
                     $_product = $values['data'];
                     $weight = $weight + $_product->get_weight() * $values['quantity'];
                 }
                 $weight = wc_get_weight( $weight, 'kg' );
                 if ( $weight > $weightLimit ) {
-                    $message = sprintf( __( 'Sorry, %d kg exceeds the maximum weight of %d kg for %s', 'tutsplus' ), $weight, $weightLimit, $TutsPlus_Shipping_Method->title );
+                    $message = sprintf( 'Sorry, %d kg exceeds the maximum weight of %d kg for %s', $weight, $weightLimit, $BizPlus_Shipping_Method->title );
                     $messageType = 'error'; // 'success', 'error', 'notice'
                     if ( ! wc_has_notice( $message, $messageType ) ) {
                         wc_add_notice( $message, $messageType );

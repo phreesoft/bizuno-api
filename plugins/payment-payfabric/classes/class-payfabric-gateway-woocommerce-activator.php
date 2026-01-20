@@ -33,15 +33,12 @@ class Payfabric_Gateway_Woocommerce_Activator
     {
         if (!class_exists('woocommerce') || !function_exists('WC')) {
             deactivate_plugins(plugin_basename(__FILE__));
-
-            wp_die(__('PayFabric Gateway for Woocommerce requires Woocommerce version 3.0 or higher', 'payfabric-gateway-woocommerce'), __('Plugin Activation Error', 'payfabric-gateway-woocommerce'), array('response' => 200, 'back_link' => TRUE));
+            wp_die( wp_kses_post ( __('PayFabric Gateway for Woocommerce requires Woocommerce version 3.0 or higher', 'bizuno-api'), __('Plugin Activation Error', 'bizuno-api'), array('response' => 200, 'back_link' => TRUE)));
 
         }
         if (version_compare(WC()->version, "3.0", '<')) {
             deactivate_plugins(plugin_basename(__FILE__));
-
-            wp_die(__('PayFabric Gateway for Woocommerce requires Woocommerce version 3.0 or higher', 'payfabric-gateway-woocommerce'), __('Plugin Activation Error', 'payfabric-gateway-woocommerce'), array('response' => 200, 'back_link' => TRUE));
+            wp_die( wp_kses_post ( __('PayFabric Gateway for Woocommerce requires Woocommerce version 3.0 or higher', 'bizuno-api'), __('Plugin Activation Error', 'bizuno-api'), array('response' => 200, 'back_link' => TRUE)));
         }
     }
-
 }

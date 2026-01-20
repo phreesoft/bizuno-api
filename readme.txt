@@ -1,15 +1,15 @@
-=== Bizuno API – Secure RESTful Bridge for Bizuno ERP & the WooCommerce plugin ===
+=== Bizuno API – Inventory/Order Management for WooCommerce ===
+Stable tag: 7.3.6
 Contributors: phreesoft
 Donate link: https://www.bizuno.com/donate/
-Tags: bizuno, erp, accounting, woocommerce, rest-api, api, integration, sync, ecommerce, inventory-sync, order-sync, phreebooks
-Requires at least: 5.8
+Tags: bizuno, erp, accounting, woocommerce, rest-api
+Requires at least: 6.5
 Tested up to: 6.9
 Requires PHP: 8.0
-Stable tag: 7.3.6
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
-The official WordPress plugin that unlocks the full power of Bizuno's secure RESTful API – seamless two-way integration between the WooCommerce plugin and Bizuno Accounting/ERP!
+Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
 
 == Description ==
 

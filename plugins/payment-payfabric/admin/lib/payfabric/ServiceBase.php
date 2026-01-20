@@ -82,7 +82,7 @@ class payFabric_ServiceBase
     public function setLogger($path, $severity = 'NOTICE')
     {
         if (!isset($path)) {
-            throw new Exception('Logger path ' . $path . ' is required');
+            throw new Exception( esc_html ( sprintf( 'Logger path %s is required', $path) ) );
         }
         payFabric_RequestBase::setLogger($path, $severity);
         if (is_object(payFabric_RequestBase::$logger)) {

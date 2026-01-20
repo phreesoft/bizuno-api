@@ -44,7 +44,7 @@ add_action('plugins_loaded', 'init_payfabric_gateway', 0); */
 function payfabric_gateway_action_links($links)
 {
     $plugin_links = array(
-        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=payfabric') . '">' . __('Settings', 'payfabric') . '</a>',
+        '<a href="' . admin_url('admin.php?page=wc-settings&tab=checkout&section=payfabric') . '">' . __('Settings', 'bizuno-api') . '</a>',
     );
     return array_merge($plugin_links, $links);
 }

@@ -151,7 +151,7 @@ class payFabric_RequestBase
             if ((strlen($this->chargeInterest) > 0) && (!in_array(strtoupper($this->chargeInterest), array("Y", "N")))) {
                 throw new InvalidArgumentException("[PayFabric Class] Field 'chargeInterest' only accepts Y and N as value.");
             }
-            if ((strlen($this->expirationDate) > 0) && (date("Ymd", strtotime($this->expirationDate)) < date("Ymd"))) {
+            if ((strlen($this->expirationDate) > 0) && (gmdate("Ymd", strtotime($this->expirationDate)) < gmdate("Ymd"))) {
                 throw new InvalidArgumentException("[PayFabric Class] Boleto expiration date can only be set in the future.");
             }
             if ((strlen($this->instructions) > 0) && (strlen($this->instructions) > 350)) {

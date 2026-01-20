@@ -27,15 +27,22 @@
 
 namespace bizuno;
 
+if ( ! defined( 'ABSPATH' ) ) exit;
+
 class product extends common
 {
     public $productID  = 0;
+    private $bizProduct;
+    private $canWrite;
     private $fileBirdActive;
 
     function __construct($options=[])
     {
+        global $wp_filesystem;
         parent::__construct($options);
         $this->fileBirdActive = is_plugin_active ( 'filebird/filebird.php' ) || is_plugin_active ( 'filebird-pro/filebird.php' ) ? true : false;
+        if ( ! function_exists( 'WP_Filesystem' ) ) { require_once ABSPATH . 'wp-admin/includes/file.php'; }
+        $this->canWrite = ! WP_Filesystem() ? msgAdd("Cannot create image path: $image_dir") : true;
     }
 
     /********************** Cron Events ************************/
@@ -99,7 +106,7 @@ class product extends common
     // Start output
     if ($pack_size > 1) {
         echo '<p style="font-size: 14px; color: #666; margin: 10px 0;">
-                <strong>Note:</strong> Sold in packages of ' . $pack_size . '. Quantity must be in multiples of ' . $pack_size . '.</p>';
+                <strong>Note:</strong>'. esc_html( sprintf ( 'Sold in packages of %d. Quantity must be in multiples of %d', $pack_size, $pack_size ) ) . '</p>';
     }
     ?>
     <div class="bizuno-volume-pricing-table" style="margin: 30px 0; padding: 20px; background: #f9f9f9; border: 1px solid #e1e1e1; border-radius: 8px; font-family: Arial, sans-serif;">
@@ -120,7 +127,7 @@ class product extends common
                     <tr style="border-bottom: 1px solid #eee;">
                         <td style="padding: 10px;"><?php echo esc_html($qty . '+'); ?></td>
                         <td style="padding: 10px; text-align: right; font-weight: bold; color: #d63384;">
-                            <?php echo wc_price($price); ?>
+                            <?php echo wp_kses_post( wc_price( $price ) ); ?>
                         </td>
                     </tr>
                 <?php endforeach; ?>
@@ -141,12 +148,11 @@ class product extends common
      */
     public function productImport($post=[])
     {
-        global $wcProduct;
         msgDebug("\nEntering productImport");
         set_time_limit(60); // set timeout to 1 minute, imagemgk is verty slow when doing a full upload
         if (!is_array($post) || empty($post['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
         msgDebug(" with sku = {$post['SKU']} and sizeof product = ".sizeof($post));
-        $wcProduct = $this->getProduct($post);
+        $this->bizProduct = $this->getProduct($post);
         
         $slug = !empty($post['WooCommerceSlug']) ? $post['WooCommerceSlug'] : $post['Description'];
         if (isset($post['WeightUOM'])) { // convert weight (need to convert kg,lb,oz,g)
@@ -163,31 +169,31 @@ class product extends common
             $height = isset($post['ProductHeight'])? $this->convertLength($post['ProductHeight'],$dim, $wordpress_dim) : '';
         }
         // Let's go
-        $product_id = $wcProduct->get_id();
+        $product_id = $this->bizProduct->get_id();
         msgDebug("\nSetting fields and meta data");
-        $wcProduct->set_date_modified(\wp_date('Y-m-d H:i:s'));
-        $wcProduct->set_description(!empty($post['DescriptionLong']) ? $post['DescriptionLong'] : $post['DescriptionSales']);
-        $wcProduct->set_length($length);
-        $wcProduct->set_width($width);
-        $wcProduct->set_height($height);
-        $wcProduct->set_weight($weight);
-        $wcProduct->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
-        $wcProduct->set_backorders($this->options['inv_backorders']);
-        $wcProduct->set_menu_order(!empty($post['MenuOrder']) ? (int)$post['MenuOrder'] : 99);
-        $wcProduct->set_name($post['Description']);
+        $this->bizProduct->set_date_modified(\wp_date('Y-m-d H:i:s'));
+        $this->bizProduct->set_description(!empty($post['DescriptionLong']) ? $post['DescriptionLong'] : $post['DescriptionSales']);
+        $this->bizProduct->set_length($length);
+        $this->bizProduct->set_width($width);
+        $this->bizProduct->set_height($height);
+        $this->bizProduct->set_weight($weight);
+        $this->bizProduct->set_manage_stock(!empty($this->options['inv_stock_mgt']) ? true : false);
+        $this->bizProduct->set_backorders($this->options['inv_backorders']);
+        $this->bizProduct->set_menu_order(!empty($post['MenuOrder']) ? (int)$post['MenuOrder'] : 99);
+        $this->bizProduct->set_name($post['Description']);
         msgDebug("\nSetting price to ".$post['Price']);
-        $wcProduct->set_price(floatval($post['Price']));
-        $wcProduct->set_regular_price(floatval($post['Price']));
-        $wcProduct->set_sale_price('');
-//      $wcProduct->set_regular_price(!empty($post['RegularPrice']) ? $post['RegularPrice'] : '');
-//      $wcProduct->set_sale_price(!empty($post['SalePrice']) ? $post['SalePrice'] : '');
-        $this->priceTiers($wcProduct, !empty($post['PriceTiers']) ? $post['PriceTiers'] : []);
-        $wcProduct->set_short_description(!empty($post['DescriptionSales']) ? $post['DescriptionSales'] : $post['Description']);
-        $wcProduct->set_slug($this->getPermaLink($slug));
-//      $wcProduct->set_status('published');
-        $wcProduct->set_stock_quantity($post['QtyStock'] > 0 ? $post['QtyStock'] : 0);
-        $wcProduct->set_stock_status($post['QtyStock'] > 0 ? 'instock' : 'outofstock');
-        $wcProduct->set_tax_status('taxable');
+        $this->bizProduct->set_price(floatval($post['Price']));
+        $this->bizProduct->set_regular_price(floatval($post['Price']));
+        $this->bizProduct->set_sale_price('');
+//      $this->bizProduct->set_regular_price(!empty($post['RegularPrice']) ? $post['RegularPrice'] : '');
+//      $this->bizProduct->set_sale_price(!empty($post['SalePrice']) ? $post['SalePrice'] : '');
+        $this->priceTiers($this->bizProduct, !empty($post['PriceTiers']) ? $post['PriceTiers'] : []);
+        $this->bizProduct->set_short_description(!empty($post['DescriptionSales']) ? $post['DescriptionSales'] : $post['Description']);
+        $this->bizProduct->set_slug($this->getPermaLink($slug));
+//      $this->bizProduct->set_status('published');
+        $this->bizProduct->set_stock_quantity($post['QtyStock'] > 0 ? $post['QtyStock'] : 0);
+        $this->bizProduct->set_stock_status($post['QtyStock'] > 0 ? 'instock' : 'outofstock');
+        $this->bizProduct->set_tax_status('taxable');
         msgDebug("\nChecking on sendMode and starting appropriate sequence");
         switch ($post['sendMode']) {
             default: // default needs to be here so the individula upload sends everyhthing.
@@ -204,7 +210,7 @@ class product extends common
                 break;
         }
         msgDebug("\nSaving the product.");
-        $wcProduct->save();
+        $this->bizProduct->save();
         return $product_id;
     }
 
@@ -214,8 +220,7 @@ class product extends common
         $this->productID = \wc_get_product_id_by_sku($post['SKU']);
         msgDebug("\nEntering getProduct, fetched product ID = $this->productID");
         if (empty($this->productID)) { // The new way returns zero for products uploaded in early versions of the API, try to old way, just in case
-            $this->productID = $wpdb->get_var("SELECT post_id FROM $wpdb->postmeta WHERE `meta_key` = '_sku' AND `meta_value`='".addslashes($post['SKU'])."'");
-//            $this->productID = dbGetValue(SOME_DB_PREFIX.'postmeta', 'post_id', "`meta_key` = '_sku' AND `meta_value`='".addslashes($post['SKU'])."'", true);
+            $this->productID = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value = %s LIMIT 1", $post['SKU'] ) );
             msgDebug("\nTried the old way, product ID is now = $this->productID");
         }
         $productType = !empty($post['Type']) ? strtolower($post['Type']) : 'si'; // allows change of product type on the fly
@@ -262,7 +267,7 @@ class product extends common
 
     private function productRelated($post)
     {
-        global $wpdb; // $wcProduct;
+        global $wpdb;
         msgDebug("\nEntering productRelated");
         // This needs to be updated to the new method, probably part of WC_Product_Simple
         //
@@ -271,8 +276,7 @@ class product extends common
         if (!empty($post['invAccessory']) && is_array($post['invAccessory'])) {
             $post['related'] = [];
             foreach ($post['invAccessory'] as $related) {
-                $product_id = $wpdb->get_var("SELECT post_id FROM $wpdb->postmeta WHERE `meta_key` LIKE '_sku' AND `meta_value`='{$related}'");
-//              $product_id = dbGetValue(SOME_DB_PREFIX.'postmeta', 'post_id', "`meta_key` LIKE '_sku' AND `meta_value`='{$related}'", true);
+                $product_id = wc_get_product_id_by_sku( $related );
                 if ($product_id !== false) { $post['related'][] = $product_id; }
             }
             msgDebug("related items found:".print_r($post['related'], true));
@@ -285,11 +289,10 @@ class product extends common
 
     private function productMetadata($post)
     {
-        global $wcProduct;
-        if (!empty($post['SearchCode']))      { $wcProduct->update_meta_data('biz_search_code',      $post['SearchCode']); }
+        if (!empty($post['SearchCode']))      { $this->bizProduct->update_meta_data('biz_search_code',      $post['SearchCode']); }
         msgDebug("\nEntering productMetadata and checking for YOST SEO plugin active");
         if ( !is_plugin_active( 'wordpress-seo/wp-seo.php' ) ) { return; }
-        if (!empty($post['MetaDescription'])) { $wcProduct->update_meta_data('_yoast_wpseo_metadesc',$post['MetaDescription']); }
+        if (!empty($post['MetaDescription'])) { $this->bizProduct->update_meta_data('_yoast_wpseo_metadesc',$post['MetaDescription']); }
     }
 
     /**
@@ -358,7 +361,7 @@ class product extends common
             // Check just the lowest on the category tree if endCatOnly is true
             if ($this->endCatOnly) {
                 wp_set_post_terms( $product_id, [$termIDs['term_id']], 'product_cat', true );
-//              $wcProduct->set_category_ids();  // New way
+//              $this->bizProduct->set_category_ids();  // New way
             }
         }
         return true;
@@ -372,10 +375,10 @@ class product extends common
      */
     private function productAttributes($post, $product_id)
     {
-        global $wpdb; // $wcProduct; // new way
+        global $wpdb;
         msgDebug("\nEntering productAttributes");
         if (empty($post['Attributes'])) { return; }
-        $result     = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $wpdb->term_taxonomy WHERE taxonomy LIKE 'pa_%'", 'active' ), ARRAY_A );
+        $result = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $wpdb->term_taxonomy WHERE taxonomy LIKE %s", $wpdb->esc_like( 'pa_' ) . '%' ), ARRAY_A );
 //      $result     = dbGetMulti(SOME_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
         $pa_attr_ids= [];
         foreach ($result as $row) { $pa_attr_ids[] = $row['term_taxonomy_id']; }
@@ -389,7 +392,7 @@ class product extends common
             if (empty($row['title']) || empty($row['index'])) { continue; }
             $attrSlug= $this->getPermaLink($row['index']);
 //          $attrSlug= $this->getPermaLink($post['AttributeCategory'].'_'.strtolower($row['index'])); // creates a lot of attributes and causes filtering issues
-            $exists  = $wpdb->get_var("SELECT attribute_name FROM {$wpdb->prefix}woocommerce_attribute_taxonomies WHERE attribute_name='$attrSlug'");
+            $exists  = $wpdb->get_var( $wpdb->prepare( "SELECT attribute_name FROM {$wpdb->prefix}woocommerce_attribute_taxonomies WHERE attribute_name = %s", $attrSlug));
 //          $exists  = dbGetValue(SOME_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
             if (!$exists) {
                 $newAttr = [
@@ -434,10 +437,9 @@ class product extends common
      */
     private function productVariations($variations, $product_id)
     {
-        global $wcProduct;
         msgDebug("\nEntering productVariations with variations = ".print_r($variations, true));
         // Process the attributes
-        $allAttrs = $wcProduct->get_attributes();
+        $allAttrs = $this->bizProduct->get_attributes();
         $attrNames= [];
         foreach ($allAttrs as $tmp) { $attrNames[] = $tmp['name']; }
         $cnt      = 0;
@@ -455,7 +457,7 @@ class product extends common
             else              { msgDebug("\nUpdating attribute");   $allAttrs[$key] = $attribute; }
             $cnt++;
         }
-        $wcProduct->set_attributes( $allAttrs );
+        $this->bizProduct->set_attributes( $allAttrs );
         // get the current variations keyed by sku for searching
         $existingIDs = $this->getCurrentVariations($product_id);
         // foreach variation in the request
@@ -499,7 +501,7 @@ class product extends common
             $variation->save(); // Save the data
         }
         msgDebug("\nSetting default variations to ".print_r($variations['variations'][0]['attributes'], true));
-        $wcProduct->set_default_attributes( $variations['variations'][0]['attributes'] );
+        $this->bizProduct->set_default_attributes( $variations['variations'][0]['attributes'] );
         // delete left over variants that are no longer used
         if (sizeof($existingIDs) > 0) { // We still have some more variations, delete them
             foreach ($existingIDs as $exID) {
@@ -536,7 +538,6 @@ class product extends common
      */
     private function productImage($post, $product_id, $replace=false)
     {
-        global $wcProduct;
         msgDebug("\nEntering productImage with product ID = $product_id");
         if (empty($post['ProductImageFilename'])) { return; }
         $media = [];
@@ -559,7 +560,7 @@ class product extends common
         msgDebug("\nReturned from setImage with thumbnail post ID = $imgIdx");
         if (!empty($imgIdx)) {
 //          update_post_meta( $product_id, '_thumbnail_id', $imgIdx ); // Old way
-            $wcProduct->set_image_id($imgIdx);
+            $this->bizProduct->set_image_id($imgIdx);
         }
         // Set the image gallery (for the rest of the images)
         msgDebug("\nReady to process extra images with media = ".print_r($media, true));
@@ -568,7 +569,7 @@ class product extends common
             $imgIdx = $this->setImage($props, $product_id, $replace);
             if (!empty($imgIdx)) { $xIDs[] = $imgIdx; }
         }
-        $wcProduct->set_gallery_image_ids($xIDs);
+        $this->bizProduct->set_gallery_image_ids($xIDs);
 //      update_post_meta($product_id, '_product_image_gallery', implode(',', $xIDs));  // Old Way
     }
 
@@ -590,8 +591,10 @@ class product extends common
         global $wpdb;
         msgDebug("\nEntering setImageCleaner with product_id = $product_id");
         // first check thumbnails for multiple records, should only be one
-        $metaIDs = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $wpdb->postmeta WHERE post_id=$product_id AND meta_key='_thumbnail_id'", 'active' ), ARRAY_A );
+        $metaIDs = $wpdb->get_results( $wpdb->prepare( "SELECT meta_id, meta_value FROM $wpdb->postmeta WHERE post_id = %d AND meta_key = '_thumbnail_id'", $product_id ), ARRAY_A);
 //      $metaIDs = dbGetMulti(SOME_DB_PREFIX.'postmeta', "post_id=$product_id AND meta_key='_thumbnail_id'");
+        
+        
         if (sizeof($metaIDs) > 1) {
             for ($i=1; $i<sizeof($metaIDs); $i++) { // earlier bug where multiple thumbnails were generated
                 msgDebug("\nDeleting duplicate thumbnail with ID = ".print_r($metaIDs[$i], true));
@@ -601,7 +604,7 @@ class product extends common
             }
         }
         // If the same image is used for multiple products, then multiple media posts were generated, clean these up and start over.
-        $dupImages = $wpdb->get_results( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_parent<>0 AND post_parent=$product_id AND post_type='attachment' ORDER BY ID", 'active' ), ARRAY_A );
+        $dupImages = $wpdb->get_results( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_parent <> 0 AND post_parent = %d AND post_type = 'attachment' ORDER BY ID", $product_id ), ARRAY_A);
 //      $dupImages = dbGetMulti(SOME_DB_PREFIX.'posts', "post_parent<>0 AND post_parent=$product_id AND post_type='attachment'", 'ID', ['ID']);
         foreach ($dupImages as $imageID) {
             msgDebug("\nDeleting duplicate images with ID = ".print_r($imageID, true));
@@ -618,7 +621,7 @@ class product extends common
      */
     private function setImage($props, $product_id, $replace=false)
     {
-        global $wpdb;
+        global $wpdb, $wp_filesystem;
         msgDebug("\nEntering setImage with sizeof image = ".strlen($props['data']));
         $upload_folder= wp_upload_dir();
         $image_dir    = $upload_folder['basedir']."/{$props['path']}";
@@ -626,7 +629,7 @@ class product extends common
         $guid         = $props['path'] . $props['name'];
         msgDebug("\nLooking for all images at: $guid");
         // BOF - Clean out duplicate image posts pointing to the same file
-        $postIDs = $wpdb->get_results( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key='_wp_attached_file' AND meta_value='$guid' ORDER BY post_id", 'active' ), ARRAY_A );
+        $postIDs = $wpdb->get_results( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = '_wp_attached_file' AND meta_value = %s ORDER BY post_id", $guid ), ARRAY_A );
 //      $postIDs = dbGetMulti(SOME_DB_PREFIX.'postmeta', "meta_key='_wp_attached_file' AND meta_value='$guid'", 'post_id', ['post_id']);
         msgDebug("\nRead the following ID's for this image path: ".print_r($postIDs, true));
         for ($i=1; $i<sizeof($postIDs); $i++) { // earlier bug where multiple thumbnails were generated pointing to same file location
@@ -636,8 +639,8 @@ class product extends common
 //          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE post_id={$postIDs[$i]['post_id']}");
         }
         if (sizeof($postIDs)>0) {
-            $postExists = $wpdb->get_var("SELECT ID FROM $wpdb->posts WHERE ID={$postIDs[0]['post_id']}");
-//          $postExists = dbGetValue(SOME_DB_PREFIX.'posts', 'ID', "ID={$postIDs[0]['post_id']}");
+            $post_id = absint( $postIDs[0]['post_id'] ?? 0 );
+            $postExists = get_post_status( $post_id ) !== false;
             msgDebug("\nRead to see if the record exists: ".print_r($postExists, true));
             if (empty($postExists)) {
                 $wpdb->delete( $wpdb->postmeta, [ 'post_id' => (int) $postIDs[0]['post_id'] ], [ '%d' ] );
@@ -657,13 +660,18 @@ class product extends common
         }
         // NOTE: the str_replace is to necessary to fix a PHP 5 issue with spaces in the base64 encode... see php.net
         $contents    = base64_decode(str_replace(" ", "+", $props['data']));
-        if (!is_dir($image_dir)) { if (!@mkdir($image_dir, 0755, true)) { return msgAdd("Cannot create image path: $image_dir"); } }
+        if (!$this->canWrite) { return; }
+        // Check if directory already exists
+        if ( ! $wp_filesystem->is_dir( $image_dir ) ) {
+            if ( ! $wp_filesystem->mkdir( $image_dir, 0755 ) ) { return msgAdd( "Cannot create image folder: $image_dir" ); }
+        }
         $full_path   = $image_dir.$props['name'];
         $dirname     = dirname($full_path);
-        if (!is_dir($dirname)) { mkdir($dirname, 0755, true); }
-        if (!$handle = fopen($full_path, 'wb')) { return msgAdd("Cannot open Image path: $full_path"); }
-        if (fwrite($handle, $contents) === false) { return msgAdd("Cannot write Image file."); }
-        fclose($handle);
+        if ( ! $wp_filesystem->is_dir( $dirname ) ) {
+            if ( ! $wp_filesystem->mkdir( $dirname, 0755 ) ) { return msgAdd( "Cannot create image path: $dirname" ); }
+        }
+        $success = $wp_filesystem->put_contents( $full_path, $contents, 0644 );
+        if ( ! $success ) { return msgAdd( "Cannot write image file: $full_path" ); }
         msgDebug("\nWrote image image_directory = $image_dir and image_filename = {$props['name']} and image length = ".strlen($props['data']));
         $filetype = wp_check_filetype(basename( $filename ), null);
         $args = [
@@ -725,8 +733,8 @@ class product extends common
         $parent = 0;
         foreach ($dirs as $dir) {
             msgDebug("\nLooking for dir $dir with parent: $parent");
-            $sql = "SELECT id FROM {$wpdb->prefix}fbv WHERE name='$dir' AND parent=$parent";
-            $result = $wpdb->get_row($sql);
+
+            $result = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}fbv WHERE name = %s AND parent = %d", $dir, $parent ) );
             if (is_null($result)) {
                 msgDebug("\nInserting into fbv with dir = $dir and parent = $parent");
                 $wpdb->insert( $wpdb->prefix . 'bsi_fbv', ['name'=>$dir, 'parent'=>$parent], ['%s', '%d'] );
@@ -745,7 +753,7 @@ class product extends common
         global $wpdb;
         msgDebug("\nEntering setFBAttach with fileParent = $fileParent");
         if ( !$this->fileBirdActive ) { return; }
-        $result = $wpdb->get_row("SELECT folder_id FROM {$wpdb->prefix}fbv_attachment_folder WHERE folder_id=$fileParent AND attachment_id=$attach_id");
+        $result = $wpdb->get_row( $wpdb->prepare( "SELECT folder_id FROM {$wpdb->prefix}fbv_attachment_folder WHERE folder_id = %d AND attachment_id = %d LIMIT 1", absint( $fileParent ), absint( $attach_id ) ) );
         msgDebug("\nRead from fbv_attachment_folder: ".print_r($result, true));
         if (is_null($result)) {
             msgDebug("\nInserting into fbv_attachment_folder parent = $fileParent and attach_id = $attach_id");
@@ -789,15 +797,16 @@ class product extends common
 
         // Build list of SKUs to lookup
         $skus = array_filter(array_column($items, 'SKU'));
-        if (empty($skus)) {
-            return ['result' => true, 'note' => 'No valid SKUs found'];
+        if (empty($skus)) { return ['result' => true, 'note' => 'No valid SKUs found']; }
+        // Batch lookup WooCommerce products by SKU (safe, checker-compliant)
+        $skus = array_unique( array_filter( array_map( 'trim', $skus ) ) );
+        if ( empty( $skus ) ) {
+            $items = [];
+        } else {
+            $placeholders = implode( ',', array_fill( 0, count( $skus ), '%s' ) );
+            $rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN ($placeholders)",
+                ...$skus ) , OBJECT_K ); // keys by first column = sku
         }
-
-        // Batch lookup WooCommerce products by SKU
-        $placeholders = implode(',', array_fill(0, count($skus), '%s'));
-        $sql = "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN ($placeholders)";
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $skus), OBJECT_K); // keyed by SKU
-
         foreach ($items as $item) {
             $sku = trim($item['SKU'] ?? '');
             if ($sku === '') {
