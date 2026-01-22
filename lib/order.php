@@ -104,18 +104,6 @@ class order extends common
     }
 
     /************ Hooks for WooCommerce Order Admin page ****************/
-    function bizuno_enqueue_payfabric_scripts() {
-        if ( ! is_checkout() && ! is_wc_endpoint_url( 'order-pay' ) ) { return; } // Only load on pages where it's actually needed
-        $js_url = $this->host . '/Payment/WebGate/Content/bundles/payfabricpayments.bundle.js';
-        wp_enqueue_script(
-            'payfabric-sdk',                // unique handle
-            $js_url,                        // full URL or plugin-relative path
-            array(),                        // dependencies (add 'jquery' if needed)
-            null,                           // version (null = no cache busting, or use your version)
-            true                            // load in footer = true (recommended for most scripts)
-        );
-    }
-    
     public function bizuno_api_post_payment($order_id)
     {
         msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = ".\get_option ( 'bizuno_api_autodownload', false )." and bizuno_order_exported = ".print_r(\get_post_meta ( $order_id, 'bizuno_order_exported' ), true));

@@ -30,6 +30,7 @@ require_once ( dirname(__FILE__) . '/lib/shipping.php' );
 
 class bizuno_api
 {
+    private $bizEnabled= false;
     private $bizLib    = "bizuno-wp";
     private $bizLibURL = "https://bizuno.com/downloads/latest/bizuno-wp.zip";
 
@@ -52,7 +53,6 @@ class bizuno_api
         add_action ( 'rest_api_init',           [ $this, 'ps_register_rest' ] );
         add_action ( 'woocommerce_init',        [ $this, 'ps_woocommerce_init' ] );
         add_action ( 'plugins_loaded',          [ $this, 'ps_plugins_loaded' ] );
-        add_action ( 'wp_enqueue_scripts',      [ $this->order, 'bizuno_enqueue_payfabric_scripts' ] );
         add_action ( 'bizuno_api_image_process',[ $this->product, 'cron_image' ] );
         add_action ( 'admin_notices',           [ $this, 'bizAdminNotices' ], 20 );
         // WordPress Filters
@@ -83,7 +83,7 @@ class bizuno_api
             add_filter ( 'woocommerce_shop_order_list_table_columns',        [ $this->admin,    'bizuno_api_order_column_header_hpos' ], 20 ); // works with HPOS
             add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,    'bizuno_api_order_preview_filter' ], 10, 2);
             add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
-            if ($this->options['tax_enable']=='yes') {
+            if (array_key_exists('tax_enable', $this->options) && $this->options['tax_enable']=='yes') {
                 add_filter ( 'woocommerce_matched_rates',                    [ $this->sales_tax,'bizuno_get_rest_tax_rate' ], 10, 3 );
                 add_filter ( 'woocommerce_package_rates',                    [ $this->shipping, 'bizuno_override_shipping_tax_class' ], 20, 2 );
             }
@@ -100,7 +100,8 @@ class bizuno_api
                 return;
             }
         }
-        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' ); // Initialize Bizuno environment
+//        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' ); // Initialize Bizuno environment
+//        $this->bizEnabled = true;
     }
 
     /**
@@ -183,9 +184,10 @@ class bizuno_api
         foreach ( $notices as $n ) { printf( '<div class="%s"><p>%s</p></div>', esc_attr( $n['class'] ), wp_kses_post( $n['message'] ) ); }
     }
     public function bizuno_write_debug() {
+        if ( class_exists( 'WP_Upgrader' ) && ! empty( $GLOBALS['wp_upgrader'] ) ) { return; }
         // This runs as the VERY LAST thing WordPress does
         // Right before PHP finishes execution and sends output
-        if ( function_exists("\\bizuno\\msgDebugWrite" ) ) { \bizuno\msgDebugWrite(); }
+        if ( $this->bizEnabled && function_exists("\\bizuno\\msgDebugWrite" ) ) { \bizuno\msgDebugWrite(); }
     }
 
     public function activate()

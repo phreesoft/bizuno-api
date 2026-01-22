@@ -33,6 +33,7 @@ class admin extends common
 {
     private $bizLib    = "bizuno-wp";
     public  $api_local = false; // ISP Hosted so books are at another url
+    public  $options = [];
 
     function __construct() {
         $this->defaults = ['url'=>'',
@@ -41,8 +42,7 @@ class admin extends common
             'prefix_order'   => 'WC', 'prefix_customer'=> 'WC',
             'journal_id'     => 0,    'autodownload'   => 'no',
             'tax_enable'     => 'no', 'tax_nexus'      => []];
-        $this->is_post = ( isset( $_POST['_wpnonce'] ) && wp_verify_nonce( $_POST['_wpnonce'], 'api-settings_' . $user_id ) && current_user_can( 'edit_user', $user_id ) ) ? true : false;
-        $this->options = $this->processOptions($this->defaults);
+        add_action('admin_init', [$this, 'processOptions'], 20);
     }
 
     /************************************************* Filters ***************************************************/
@@ -93,7 +93,7 @@ class admin extends common
         if ($column == 'bizuno_download') {
             $exported = $the_order->get_meta( 'bizuno_order_exported', true );
             if (empty($exported)) {
-                echo wp_kses_post('<button type="button" class="order-status status-processing tips" data-tip="">') . esc_html ( __( 'No', 'bizuno-api' ) ) . wp_kses_post ( '</button>' );
+                echo \wp_kses_post('<button type="button" class="order-status status-processing tips" data-tip="">') . \esc_html ( __( 'No', 'bizuno-api' ) ) . \wp_kses_post ( '</button>' );
             } else { echo 'X&nbsp;'; }
         }
     }
@@ -104,8 +104,8 @@ class admin extends common
             msgDebug("\nread meta_value = ".print_r($exported, true));
             if (empty($exported) && !in_array($status, ['cancelled', 'on-hold'])) {
                 $tip = "status = $status";
-                echo wp_kses_post('<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">') . esc_html ( __( 'No', 'bizuno-api' ) ) . wp_kses_post ( '</button>' );
-            } else { echo esc_html('&nbsp;'); }
+                echo \wp_kses_post('<button type="button" class="order-status status-processing tips" data-tip="'.$tip.'">') . \esc_html ( __( 'No', 'bizuno-api' ) ) . \wp_kses_post ( '</button>' );
+            } else { echo \esc_html('&nbsp;'); }
         }
     }
     
@@ -115,7 +115,7 @@ class admin extends common
     }
     public function bizuno_api_order_preview_action() {
         $url = admin_url( 'admin-ajax.php?action=bizuno_api_order_download' );
-        echo wp_kses_post('<span style="display:{{ data.bizuno_order_exported }}"><a class="button button-primary button-large" onClick="window.location = \''.$url.'&biz_order_id={{ data.data.id }}\';">').esc_html( __( 'Export order to Bizuno', 'bizuno-api' ) ).'</a></span>'."\n";
+        echo \wp_kses_post('<span style="display:{{ data.bizuno_order_exported }}"><a class="button button-primary button-large" onClick="window.location = \''.$url.'&biz_order_id={{ data.data.id }}\';">').\esc_html( __( 'Export order to Bizuno', 'bizuno-api' ) ).'</a></span>'."\n";
     }
     public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
         if (get_post_meta( get_the_ID(), 'bizuno_order_exported', true ) ) { return $actions; }
@@ -135,9 +135,11 @@ class admin extends common
     }
 
     public function bizuno_api_setting_submenu() {
-        if (!current_user_can('manage_options')) { wp_die( esc_html ( __('You do not have sufficient permissions to access this page.', 'bizuno-api') ) ); }
-        if (!empty($this->is_post)) {
-            echo '<div class="updated"><p><strong>'.esc_html ( __('Settings Saved.', 'bizuno-api' ) ) .'</strong></p></div>';
+        $user_id = \get_current_user_id();
+        if (!current_user_can('manage_options')) { wp_die( \esc_html ( __('You do not have sufficient permissions to access this page.', 'bizuno-api') ) ); }
+        $is_post = ( isset( $_POST['_wpnonce'] ) && \wp_verify_nonce( $_POST['_wpnonce'], 'api-settings_' . $user_id ) && \current_user_can( 'edit_user', $user_id ) ) ? true : false;
+        if (!empty($is_post)) {
+            echo '<div class="updated"><p><strong>'.\esc_html ( __('Settings Saved.', 'bizuno-api' ) ) .'</strong></p></div>';
         }
         $html = '';
         $html.= '
@@ -239,17 +241,19 @@ class admin extends common
         return $output;
     }
 
-    private function processOptions($values)
+    public function processOptions($values)
     {
+        $user_id = \get_current_user_id();
+        $is_post= ( isset( $_POST['_wpnonce'] ) && \wp_verify_nonce( $_POST['_wpnonce'], 'api-settings_' . $user_id ) && \current_user_can( 'edit_user', $user_id ) ) ? true : false;
         $output = [];
-        foreach ($values as $key => $default) {
-            if (!empty($this->is_post)) {
+        foreach ($this->defaults as $key => $default) {
+            if (!empty($is_post)) {
                 $output[$key] = $_POST[ 'bizuno_api_'.$key ];
                 update_option ( 'bizuno_api_'.$key, $output[$key] );
             } else {
                 $output[$key] = \get_option ( 'bizuno_api_'.$key, $default );
             }
         }
-        return $output;
+        $this->options = $output;
     }
 }

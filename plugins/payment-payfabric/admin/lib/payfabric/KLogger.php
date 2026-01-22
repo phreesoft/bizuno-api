@@ -24,7 +24,7 @@ class KLogger
 
     const NO_ARGUMENTS = 'KLogger::NO_ARGUMENTS';
 
-    private $_logStatus       = self::STATUS_LOG_CLOSED;
+    public  $_logStatus       = self::STATUS_LOG_CLOSED;
     private $_messageQueue    = array();
     private $_logFilePath     = null;
     private $_severityThreshold = self::INFO;
@@ -183,23 +183,39 @@ class KLogger
     /**
      * Append line using WP_Filesystem
      */
-    private function write( $line )
-    {
-        global $wp_filesystem;
+private function write( $line )
+{
+    global $wp_filesystem;
 
-        if ( ! $this->init_filesystem() ) {
-            error_log( "KLogger fallback: $line" );
-            return;
-        }
-
-        $success = $wp_filesystem->append_to_file( $this->_logFilePath, $line );
-
-        if ( ! $success ) {
-            $this->_messageQueue[] = 'Failed to write to log file.';
-            error_log( "KLogger write failed: $line" );
-        }
+    if ( ! $this->init_filesystem() ) {
+        error_log( "KLogger fallback: $line" );
+        return;
     }
 
+    $file = $this->_logFilePath;
+
+    // Read current contents (returns false/string)
+    $current = $wp_filesystem->get_contents( $file );
+
+    if ( false === $current ) {
+        // File doesn't exist yet → start fresh
+        $contents = $line;
+    } else {
+        // Append (add newline if needed; adjust based on your log format)
+        $contents = $current . $line;  // or rtrim($current, "\n") . "\n" . $line if you want clean lines
+    }
+
+    $success = $wp_filesystem->put_contents(
+        $file,
+        $contents,
+        FS_CHMOD_FILE  // Usually 0644; matches typical log file perms
+    );
+
+    if ( ! $success ) {
+        $this->_messageQueue[] = 'Failed to write to log file.';
+        error_log( "KLogger write failed: $line" );
+    }
+}
     // All your convenience methods remain unchanged
     public function logDebug( $line, $args = self::NO_ARGUMENTS ) { $this->log( $line, self::DEBUG, $args ); }
     public function logInfo( $line, $args = self::NO_ARGUMENTS )  { $this->log( $line, self::INFO, $args );  }

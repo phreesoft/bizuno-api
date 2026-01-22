@@ -283,7 +283,7 @@ class PayFabric_Gateway_Request
             'acceptedPaymentMethods'=> $acceptedPaymentMethods
         );
         $payfabric_form[] = '<div id="cashierDiv"></div>';
-//      $payfabric_form[] = '<script type="text/javascript" src="' . $jsUrl . '"></script>'; // Moved to enqueue_scripts to pass plugin checker
+        $payfabric_form[] = '<script type="text/javascript" src="' . $jsUrl . '"></script>'; // Moved to enqueue_scripts to pass plugin checker
         $payfabric_form[] = '<script type="text/javascript">';
         $payfabric_form[] = 'function handleResult(data) {';
         $payfabric_form[] = '    if (data.RespStatus == "Approved"){';
