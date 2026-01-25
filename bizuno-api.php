@@ -1,7 +1,6 @@
 <?php
 /**
- * Plugin Name:       Bizuno API – Inventory/Order Management for WooCommerce
- * Plugin URI:        https://www.phreesoft.com
+ * Plugin Name:       Bizuno API
  * Description:       Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
  * Version:           7.3.7
  * Requires at least: 6.5
