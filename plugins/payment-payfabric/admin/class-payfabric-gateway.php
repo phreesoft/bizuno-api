@@ -91,7 +91,7 @@ class PayFabric extends WC_Payment_Gateway
                 $this->enqueue_styles();
                 $this->enqueue_js();
                 $payfabric_request = new PayFabric_Gateway_Request($this);
-                echo $payfabric_request->generate_payfabric_gateway_form(null, $this->testmode); // This may be in an i-frame so don't escape it!
+                $payfabric_request->generate_payfabric_gateway_form(null, $this->testmode);
             }
         } catch (Exception $e) {
             wc_print_notice($e->getMessage(), 'error');
@@ -211,7 +211,7 @@ class PayFabric extends WC_Payment_Gateway
             $order = wc_get_order($order_id);
             $payfabric_request = new PayFabric_Gateway_Request($this);
 
-            echo wp_kses_post ( $payfabric_request->generate_payfabric_gateway_form($order, $this->testmode) );
+            $payfabric_request->generate_payfabric_gateway_form($order, $this->testmode);
         } catch (Exception $e) {
             wc_print_notice($e->getMessage(), 'error');
         }

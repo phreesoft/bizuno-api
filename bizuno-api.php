@@ -21,9 +21,9 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 // Library files for plugin operations
 require_once ( dirname(__FILE__) . '/lib/common.php' );
 require_once ( dirname(__FILE__) . '/lib/admin.php' );
-//require ( dirname(__FILE__) . '/lib/account.php' ); // need to finish development
+//require    ( dirname(__FILE__) . '/lib/account.php' ); // need to finish development
 require_once ( dirname(__FILE__) . '/lib/order.php' );
-//require ( dirname(__FILE__) . '/lib/payment.php' ); // need to finish development
+//require    ( dirname(__FILE__) . '/lib/payment.php' ); // need to finish development
 require_once ( dirname(__FILE__) . '/lib/product.php' );
 require_once ( dirname(__FILE__) . '/lib/sales_tax.php' );
 require_once ( dirname(__FILE__) . '/lib/shipping.php' );
@@ -33,6 +33,7 @@ class bizuno_api
     private $bizEnabled= false;
     private $bizLib    = "bizuno-wp";
     private $bizLibURL = "https://bizuno.com/downloads/latest/bizuno-wp.zip";
+    public  $options   = [];
 
     public function __construct()
     {
@@ -61,7 +62,7 @@ class bizuno_api
         if ( is_plugin_active ( 'woocommerce/woocommerce.php' ) ) {
             // WooCommerce Actions
 //add_action('woocommerce_before_add_to_cart_button', [ $this->order,    'bizuno_bulk_pack_note']);
-            add_action('woocommerce_before_add_to_cart_form',                [ $this->product,  'bizuno_single_product_summary'], 10);
+            add_action ('woocommerce_before_add_to_cart_form',               [ $this->product,  'bizuno_single_product_summary'], 10);
 //          add_action ( 'woocommerce_single_product_summary',               [ $this->product,  'bizuno_single_product_summary'], 25);
             add_action ( 'woocommerce_before_calculate_totals',              [ $this->order,    'bizuno_before_calculate_totals' ], 9999 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
@@ -75,8 +76,8 @@ class bizuno_api
             add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
 
             // WooCommerce Filters
-            add_filter('woocommerce_quantity_input_args',                    [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
-            add_filter('woocommerce_add_to_cart_validation',                 [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
+            add_filter ('woocommerce_quantity_input_args',                   [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
+            add_filter ('woocommerce_add_to_cart_validation',                [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
@@ -100,8 +101,8 @@ class bizuno_api
                 return;
             }
         }
-//        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' ); // Initialize Bizuno environment
-//        $this->bizEnabled = true;
+        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' ); // Initialize Bizuno environment
+        $this->bizEnabled = true;
     }
 
     /**

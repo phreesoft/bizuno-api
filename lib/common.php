@@ -53,7 +53,7 @@ class common
     }
     public function client_close()
     {
-//        msgDebugWrite();
+        msgDebugWrite();
     }
     public function rest_open(\WP_REST_Request $request)
     {
@@ -123,7 +123,8 @@ class common
      * @param type $endPoint
      * @return type
      */
-    function cURL( $type='get', $data=[], $endPoint='' ) {
+    function cURL( $type='get', $data=[], $endPoint='' )
+    {
         msgDebug( "\nEntering cURL (WP HTTP API) with endPoint = $endPoint and options = " . print_r( $this->options, true ) );
         $base_url = $this->options['url'] ?? '';
         $url      = trailingslashit( $base_url ) . '?bizRt=portal/api/' . $endPoint;
@@ -139,7 +140,7 @@ class common
         $headers = [
             'Authorization' => 'Basic ' . $auth,
             'Accept'        => 'application/json',           // Assume JSON API
-            'User-Agent'    => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . BIZUNO_VERSION . '; +https://www.bizuno.com)'];
+            'User-Agent'    => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . MODULE_BIZUNO_VERSION . '; +https://www.bizuno.com)'];
         // If you had other headers/cookies in $opts, merge here
         // $headers = array_merge( $headers, $additional_headers );
         // WP HTTP args

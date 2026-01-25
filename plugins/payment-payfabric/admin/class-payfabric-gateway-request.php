@@ -233,20 +233,20 @@ class PayFabric_Gateway_Request
                     wc_reduce_stock_levels($order_id);
                 }
             }
-            } elseif (in_array($transactionState, array('pending settlement', 'settled', 'captured'))) {
-                if ($order_status != 'completed' && $order_status != 'processing') {
-                    //Purchase transaction
-                    update_post_meta($order->get_id(), '_payment_status', 'completed');
-                    $order->payment_complete();
-                    // commented out by Phreesoft to prevent orders from being tagged 'complete'
+        } elseif (in_array($transactionState, array('pending settlement', 'settled', 'captured'))) {
+            if ($order_status != 'completed' && $order_status != 'processing') {
+                //Purchase transaction
+                update_post_meta($order->get_id(), '_payment_status', 'completed');
+                $order->payment_complete();
+                // commented out by Phreesoft to prevent orders from being tagged 'complete'
 //                    if ($this->gateway->api_success_status == '1') {
 //                        $order->update_status('completed', sprintf(__('Card payment completed.', 'bizuno-api')));
 //                    }
-                    //                 do_action( 'woocommerce_payment_complete', $order_id);
+                //                 do_action( 'woocommerce_payment_complete', $order_id);
 
-                    // Reduce stock levels
-                    wc_reduce_stock_levels($order_id);
-                }
+                // Reduce stock levels
+                wc_reduce_stock_levels($order_id);
+            }
         } else {
             if ($order_status != 'failed') {
                 $order->update_status('failed', sprintf(__('Card payment failed.', 'bizuno-api')));
@@ -281,26 +281,28 @@ class PayFabric_Gateway_Request
             'session' => $token,
             'disableCancel' => true,
             'acceptedPaymentMethods'=> $acceptedPaymentMethods
-        );
-        $payfabric_form[] = '<div id="cashierDiv"></div>';
-        $payfabric_form[] = '<script type="text/javascript" src="' . $jsUrl . '"></script>'; // Moved to enqueue_scripts to pass plugin checker
-        $payfabric_form[] = '<script type="text/javascript">';
-        $payfabric_form[] = 'function handleResult(data) {';
-        $payfabric_form[] = '    if (data.RespStatus == "Approved"){';
-        $payfabric_form[] = '    document.getElementById("TrxKey").value = data.TrxKey;';
-        $payfabric_form[] = '    document.getElementById("payForm").submit();}else{ setTimeout(function(){location.reload();}, 3000); }';
-        $payfabric_form[] = '}';
-        $payfabric_form[] = 'new payfabricpayments({';
+        ); ?>
+<div id="cashierDiv"></div>
+<script type="text/javascript" src="<?php echo esc_url( $jsUrl ); ?>"></script>
+<script type="text/javascript">
+function handleResult(data) {
+    if (data.RespStatus == "Approved") {
+        document.getElementById("TrxKey").value = data.TrxKey;
+        document.getElementById("payForm").submit();
+    } else {
+        setTimeout(function(){location.reload();}, 3000);
+    }
+}
+new payfabricpayments({
+<?php
         foreach ($payfabric_cashier_args as $key => $value) {
-            if (is_array($value)) { $payfabric_form[] = esc_attr($key) . ' : ' . json_encode($value) . ','; }
-            else    { $payfabric_form[] = esc_attr($key) . ' : "' . esc_attr($value) . '",'; }
+            if (is_array($value)) { echo esc_attr($key) . ':' . json_encode($value) . ','; }
+            else                  { echo esc_attr($key) . ':"' . esc_attr($value) . '",'; }
         }
-        $payfabric_form[] = 'successCallback:handleResult,';
-        $payfabric_form[] = 'failureCallback:handleResult,';
-        $payfabric_form[] = '});';
-        $payfabric_form[] = '</script>';
-
-        return $payfabric_form;
+?>
+successCallback:handleResult, failureCallback:handleResult });
+</script>';
+<?php
     }
 
     //Integrate PayFabric Cashier UI ready to pay
@@ -360,15 +362,20 @@ class PayFabric_Gateway_Request
             if (is_object(payFabric_RequestBase::$logger)) {
                 payFabric_RequestBase::$logger->logCrit($maxiPago->response);
             }
-            throw new UnexpectedValueException(wp_kses_post ( $maxiPago->response ), 503);
+            throw new UnexpectedValueException( wp_kses_post ( $maxiPago->response ), 503);
         }
 
         switch ($this->gateway->api_payment_modes) {
             //api_payment_modes : array('Iframe','Redirect', 'direct')
-            case '0':
-                $payfabric_form[] = '<form id="payForm" action="' . $return_url;
-                $payfabric_form[] = '" method="get"><input type="hidden" name="wcapi" value="payfabric"/><input type="hidden" id="TrxKey" name="TrxKey" value=""/><input type="hidden" name="key" value="' . $order->get_order_key() . '"/></form>';
-                return implode('', array_merge($payfabric_form, $this->generate_payfabric_gateway_iframe($jsUrl, $responseToken->Token, $sandbox)));
+            case '0': ?>
+<form id="payForm" action="<?php echo esc_url ( $return_url ); ?>" method="get">
+    <input type="hidden" name="wcapi" value="payfabric"/>
+    <input type="hidden" id="TrxKey" name="TrxKey" value=""/>
+    <input type="hidden" name="key" value="<?php echo esc_html ( $order->get_order_key() ); ?>"/>
+</form>
+<?php
+                $this->generate_payfabric_gateway_iframe($jsUrl, $responseToken->Token, $sandbox);
+                return '';
             case '1':
                 $form_data = array();
                 $form_data['token'] = $responseToken->Token;
@@ -378,17 +385,22 @@ class PayFabric_Gateway_Request
                 foreach ($form_data as $key => $value) {
                     $form_html .= "<input type='hidden' name='" . htmlentities($key) . "' value='" . htmlentities($value) . "'>";
                 }
-                $form_html .= '<button type="submit" class="button alt">' . __('Pay with PayFabric', 'bizuno-api') . '</button> </form>';
+                $form_html .= '<button type="submit" class="button alt">' . __('Pay with PayFabric', 'bizuno-api') . '</button></form>';
                 return $form_html;
             case '2':
                 $acceptedPaymentMethods = array("CreditCard","ECheck");
                 WC()->session->set('transaction_key', $responseTran->Key);
                 WC()->session->set('transaction_token', $responseToken->Token);
-                $payfabric_form[] = '<script type="text/javascript">';
-                $payfabric_form[] = 'var ajaxurl = "' . admin_url('admin-ajax.php') . '";</script>';
-                $payfabric_form[] = '<form id="payForm" action="';
-                $payfabric_form[] = '" method="get"><input type="hidden" name="wcapi" value="payfabric"/><input type="hidden" id="TrxKey" name="TrxKey" value=""/><input type="hidden" id="key" name="key" value=""/></form>';
-                return implode('', array_merge($payfabric_form, $this->generate_payfabric_gateway_iframe($jsUrl, $responseToken->Token, $sandbox, $acceptedPaymentMethods)));
+?>
+<script type="text/javascript">var ajaxurl="<?php echo esc_url( admin_url('admin-ajax.php') ); ?>";</script>
+<form id="payForm" action="" method="get">
+    <input type="hidden" name="wcapi" value="payfabric"/>
+    <input type="hidden" id="TrxKey" name="TrxKey" value=""/>
+    <input type="hidden" id="key" name="key" value=""/>
+</form>
+<?php
+                $this->generate_payfabric_gateway_iframe($jsUrl, $responseToken->Token, $sandbox, $acceptedPaymentMethods);
+                return '';
         }
     }
 

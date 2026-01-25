@@ -29,7 +29,7 @@ namespace bizuno;
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-global $wpdb;
+global $wpdb, $msgStack, $cleaner, $io, $db;
 
 // Business Specific
 if ( !defined( 'BIZUNO_BIZID' ) )       { define( 'BIZUNO_BIZID',       '1' ); } // Bizuno Business ID [for multi-business]
