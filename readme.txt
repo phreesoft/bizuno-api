@@ -1,5 +1,5 @@
 === Bizuno API – Inventory/Order Management for WooCommerce ===
-Stable tag: 7.3.6
+Stable tag: 7.3.7
 Contributors: phreesoft
 Donate link: https://www.bizuno.com/donate/
 Tags: bizuno, erp, accounting, woocommerce, rest-api
@@ -79,6 +79,9 @@ Yes! Real-time (or scheduled) bidirectional sync keeps everything consistent acr
 5. Secure token generation in Bizuno admin
 
 == Changelog ==
+
+= 7.3.7 =
+* Code fixes to pass WordPress Plugin Checker errors
 
 = 7.3.6 =
 * Modernized for 2026: PHP 8.3+, WordPress 6.7 compatibility
