@@ -34,8 +34,9 @@ class api_order extends api_common
     public  $userID= 0;
     private $host  = 'https://www.payfabric.com';
 
-    function __construct($options=[]) {
-        parent::__construct($options);
+    function __construct()
+    {
+        parent::__construct();
     }
     /**************** REST Endpoints to set tracking info *************/
     public function order_confirm($request) { // RESTful API to set the order tracking information

@@ -36,10 +36,10 @@ class api_product extends api_common
     private $canWrite;
     private $fileBirdActive;
 
-    function __construct($options=[])
+    function __construct()
     {
         global $wp_filesystem;
-        parent::__construct($options);
+        parent::__construct();
         $this->fileBirdActive = is_plugin_active ( 'filebird/filebird.php' ) || is_plugin_active ( 'filebird-pro/filebird.php' ) ? true : false;
         if ( ! function_exists( 'WP_Filesystem' ) ) { require_once ABSPATH . 'wp-admin/includes/file.php'; }
         $this->canWrite = ! WP_Filesystem() ? msgAdd("Cannot create image path: $image_dir") : true;

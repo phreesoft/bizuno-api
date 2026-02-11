@@ -27,28 +27,25 @@ require_once ( dirname(__FILE__) . '/lib/api_shipping.php' );
 class bizuno_api
 {
     private $bizEnabled= false;
-    private $bizLib    = "bizuno-wp";
-    private $bizLibURL = "https://bizuno.com/downloads/latest/bizuno-wp.zip";
-    public  $options   = [];
+    private $bizLib    = 'bizuno-wp';
 
     public function __construct()
     {
         register_activation_hook  ( __FILE__ , [ $this, 'activate' ] );
         register_deactivation_hook( __FILE__ , [ $this, 'deactivate' ] );
         $this->initializeBizuno();
-        $this->admin    = new \bizuno\api_admin(); // loads/updates the options for the plugin
-        $this->options  = $this->admin->options;
-        $this->order    = new \bizuno\api_order($this->options);
-        $this->product  = new \bizuno\api_product($this->options);
-        $this->shipping = new \bizuno\api_shipping($this->options);
+        $this->admin    = new \bizuno\api_admin();
+        $this->order    = new \bizuno\api_order();
+        $this->product  = new \bizuno\api_product();
+        $this->shipping = new \bizuno\api_shipping();
         // WordPress Actions
         add_action ( 'init',                    [ $this, 'initializePlugin' ] );
         add_action ( 'admin_init',              [ $this->admin, 'bizuno_api_register_settings' ] );
         add_action ( 'admin_menu',              [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
         add_action ( 'admin_notices',           [ $this, 'bizAdminNotices' ], 20 );
-        add_action ( 'rest_api_init',           [ $this, 'ps_register_rest' ] );
-        add_action ( 'woocommerce_init',        [ $this, 'ps_woocommerce_init' ] );
-        add_action ( 'plugins_loaded',          [ $this, 'ps_plugins_loaded' ] );
+        add_action ( 'rest_api_init',           [ $this, 'bizuno_api_register_rest' ] );
+        add_action ( 'woocommerce_init',        [ $this, 'bizuno_api_woocommerce_init' ] );
+        add_action ( 'plugins_loaded',          [ $this, 'bizuno_api_plugins_loaded' ] );
         add_action ( 'bizuno_api_image_process',[ $this->product, 'cron_image' ] );
         // WordPress Filters
         add_filter ( 'bizuno_settings_tabs',    [ $this->admin, 'bizuno_api_register_tab' ] );
@@ -68,7 +65,7 @@ class bizuno_api
             add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'woocommerce_after_checkout_validation',            [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
-//            add_action ( 'woocommerce_shipping_init',                        'bizuno_shipping_method_init' );
+            add_action ( 'woocommerce_shipping_init',                        'bizuno_shipping_method_init' );
             // WooCommerce Filters
             add_filter ( 'woocommerce_quantity_input_args',                  [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
             add_filter ( 'woocommerce_add_to_cart_validation',               [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
@@ -81,7 +78,7 @@ class bizuno_api
         }
     }
 
-    public function ps_plugins_loaded()
+    public function bizuno_api_plugins_loaded()
     {
         if ( ! is_plugin_active ( 'woocommerce/woocommerce.php' ) ) { return; }
         bizuno_shipping_method_init();
@@ -114,7 +111,7 @@ class bizuno_api
             'label_count'               => _n_noop( 'Shipped <span class="count">(%s)</span>', 'Shipped <span class="count">(%s)</span>', 'bizuno-api' ) ] );
     }
     
-    public function ps_woocommerce_init()
+    public function bizuno_api_woocommerce_init()
     {
         if ( ! WC()->is_rest_api_request() ) { return; }
         WC()->frontend_includes();
@@ -128,17 +125,17 @@ class bizuno_api
         if ( null === WC()->cart && function_exists( 'wc_load_cart' ) ) { wc_load_cart(); }
     }
     
-    public function ps_register_rest()
+    public function bizuno_api_register_rest()
     {
         if ( is_plugin_active ( 'woocommerce/woocommerce.php' ) ) { // From Bizuno -> WordPress (uplink)
             register_rest_route( 'bizuno-api/v1', 'product/update',  ['methods' => 'POST','args'=>[],
-                'callback' => [ new \bizuno\product($this->options), 'product_update' ], 'permission_callback' => [$this, 'check_access'] ] );
+                'callback' => [ new \bizuno\api_product(), 'product_update' ], 'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/refresh', ['methods' => 'PUT', 'args'=>[],
-                'callback' => [ new \bizuno\product($this->options), 'product_refresh' ],'permission_callback' => [$this, 'check_access'] ] );
+                'callback' => [ new \bizuno\api_product(), 'product_refresh' ],'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'product/sync',    ['methods' => 'POST','args'=>[],
-                'callback' => [ new \bizuno\product($this->options), 'product_sync' ],   'permission_callback' => [$this, 'check_access'] ] );
+                'callback' => [ new \bizuno\api_product(), 'product_sync' ],   'permission_callback' => [$this, 'check_access'] ] );
             register_rest_route( 'bizuno-api/v1', 'order/confirm',   ['methods' => 'POST','args'=>[],
-                'callback' => [ new \bizuno\order($this->options),   'order_confirm' ],  'permission_callback' => [$this, 'check_access'] ] );
+                'callback' => [ new \bizuno\api_order(),   'order_confirm' ],  'permission_callback' => [$this, 'check_access'] ] );
         }
     }
     
@@ -281,40 +278,42 @@ function bizuno_api_uninstall() {
 /***************************************************************************************************/
 function bizuno_shipping_method_init()
 {
-    class Bizuno_API_Shipping_Method extends WC_Shipping_Method
-    {
-        public function __construct( $instance_id = 0 )
+    if (!class_exists('Bizuno_API_Shipping_Method')) {
+        class Bizuno_API_Shipping_Method extends WC_Shipping_Method
         {
-            $this->id                 = 'bizuno_shipping';
-            $this->title              = __( 'Bizuno Shipping Calculator', 'bizuno-api' );
-            $this->instance_id        = absint( $instance_id );
-            $this->method_title       = __( 'Bizuno Shipping', 'bizuno-api' );
-            $this->method_description = __( 'Calculate shipping methods and costs through the Bizuno Accounting plugin', 'bizuno-api' );
-            $this->supports           = ['shipping-zones', 'instance-settings', 'instance-settings-modal', ];
-            $this->init();
-        }
-        public function init()
-        {
-            $this->init_form_fields();
-            $this->init_settings();
-            add_action( 'woocommerce_update_options_shipping_' . $this->id, [$this, 'process_admin_options']);
-        }
-        public function init_form_fields()
-        { // The settings
-            $this->instance_form_fields = [
-                'enabled'=> [ 'title'=> __( 'Enable', 'bizuno-api' ),'type'=>'checkbox','default'=>'no',
-                    'description'=> __( 'Enable Bizuno Accounting calculated shipping', 'bizuno-api' ) ],
-                'title'  => [ 'title'=> __( 'Title', 'bizuno-api' ), 'type'=>'text',    'default'=> __( 'Shipper Preference', 'bizuno-api' ),
-                    'description'=> __( 'Title to be display on site', 'bizuno-api' ) ] ];
-        }
-        public function calculate_shipping( $package=[] )
-        {
-            $admin = new \bizuno\admin();
-            $api   = new \bizuno\shipping($admin->options);
-            $rates = $api->getRates($package);
-            foreach ($rates as $rate) {
-                $wooRate = ['id'=>$rate['id'], 'label'=>$rate['title'], 'cost'=>$rate['quote']];
-                $this->add_rate( $wooRate );
+            public function __construct( $instance_id = 0 )
+            {
+                $this->id                 = 'bizuno_shipping';
+                $this->title              = __( 'Bizuno Shipping Calculator', 'bizuno-api' );
+                $this->instance_id        = absint( $instance_id );
+                $this->method_title       = __( 'Bizuno Shipping', 'bizuno-api' );
+                $this->method_description = __( 'Calculate shipping methods and costs through the Bizuno Accounting plugin', 'bizuno-api' );
+                $this->supports           = ['shipping-zones', 'instance-settings', 'instance-settings-modal', ];
+                $this->init();
+            }
+            public function init()
+            {
+                $this->init_form_fields();
+                $this->init_settings();
+                add_action( 'woocommerce_update_options_shipping_' . $this->id, [$this, 'process_admin_options']);
+            }
+            public function init_form_fields()
+            { // The settings
+                $this->instance_form_fields = [
+                    'enabled'=> [ 'title'=> __( 'Enable', 'bizuno-api' ),'type'=>'checkbox','default'=>'no',
+                        'description'=> __( 'Enable Bizuno Accounting calculated shipping', 'bizuno-api' ) ],
+                    'title'  => [ 'title'=> __( 'Title', 'bizuno-api' ), 'type'=>'text',    'default'=> __( 'Shipper Preference', 'bizuno-api' ),
+                        'description'=> __( 'Title to be display on site', 'bizuno-api' ) ] ];
+            }
+            public function calculate_shipping( $package=[] )
+            {
+                $admin = new \bizuno\api_admin();
+                $api   = new \bizuno\api_shipping();
+                $rates = $api->getRates($package);
+                foreach ($rates as $rate) {
+                    $wooRate = ['id'=>$rate['id'], 'label'=>$rate['title'], 'cost'=>$rate['quote']];
+                    $this->add_rate( $wooRate );
+                }
             }
         }
     }
