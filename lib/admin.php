@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-01-19
+ * @version    7.x Last Update: 2026-02-10
  * @filesource /lib/admin.php
  */
 
@@ -125,12 +125,12 @@ class admin extends common
     }
 
     public function bizuno_api_add_setting_submenu( ) {
-        add_submenu_page( 'options-general.php', 'Bizuno', 'Bizuno', 'manage_options', 'bizuno_api', [$this, 'bizuno_api_setting_submenu']);
+        add_submenu_page( 'options-general.php', 'Bizuno API', 'Bizuno', 'manage_options', 'bizuno_api', [$this, 'bizuno_api_setting_submenu']);
         if ( defined( 'BIZUNO_FS_LIBRARY' ) && is_plugin_active ( "$this->bizLib/$this->bizLib.php" )) {
             add_menu_page( 'Bizuno', 'Bizuno', 'manage_options', 'bizuno', 'bizuno_html', 
                 plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/$this->bizLib/$this->bizLib.php" ), 90);            
         } elseif ( !defined( 'BIZUNO_FS_LIBRARY' ) ) {
-            add_menu_page( 'GET BIZUNO', 'GET BIZUNO', 'manage_options', 'get-bizuno', 'get_bizuno_html',
+            add_menu_page( 'GET BIZUNO', 'GET BIZUNO', 'manage_options', 'get-bizuno', 'bizuno_api_get_html',
                 plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/bizuno-api/bizuno-apip.php" ), 1);
         }
     }

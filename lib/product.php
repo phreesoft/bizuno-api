@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2025-12-23
+ * @version    7.x Last Update: 2026-02-10
  * @filesource /lib/product.php
  */
 
@@ -138,6 +138,11 @@ class product extends common
         </p>
     </div><p> </p>
     <?php
+    }
+
+    public function bizuno_single_product_summary_new()
+    {
+        echo '<br />...<br />'; 
     }
 
     /************** API Product Processing ******************/
