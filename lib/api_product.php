@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-10
+ * @version    7.x Last Update: 2026-02-11
  * @filesource /lib/product.php
  */
 
@@ -29,7 +29,7 @@ namespace bizuno;
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class product extends common
+class api_product extends api_common
 {
     public $productID  = 0;
     private $bizProduct;

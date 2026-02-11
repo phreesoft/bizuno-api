@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-01-10
+ * @version    7.x Last Update: 2026-02-11
  * @filesource /lib/common.php
  */
 
@@ -29,13 +29,14 @@ namespace bizuno;
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class common
+
+define( 'BIZUNO_API_OPT_GROUP', 'bizuno_api_options' );
+
+class api_common
 {
+    public $bizLib    = 'bizuno-wp';
     public $api_local = false;
-    public $ShipTaxSt = ['AR','CT','GA','IL','KS','KY','MI','MS','NE','NJ','NM','NY',
-        'NC','ND','OH','OK','PA','RI','SC','SD','TN','TX','UT','VT','WA','WV','WI'];
-    public $state = '';
-    public $lang = [
+    public $lang      = [
         'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
     ];
 

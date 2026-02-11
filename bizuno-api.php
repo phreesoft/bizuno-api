@@ -18,11 +18,11 @@
 if ( ! defined( 'ABSPATH' ) ) { exit; }
 
 // Library files for plugin operations
-require_once ( dirname(__FILE__) . '/lib/common.php' );
-require_once ( dirname(__FILE__) . '/lib/admin.php' );
-require_once ( dirname(__FILE__) . '/lib/order.php' );
-require_once ( dirname(__FILE__) . '/lib/product.php' );
-require_once ( dirname(__FILE__) . '/lib/shipping.php' );
+require_once ( dirname(__FILE__) . '/lib/api_common.php' );
+require_once ( dirname(__FILE__) . '/lib/api_admin.php' );
+require_once ( dirname(__FILE__) . '/lib/api_order.php' );
+require_once ( dirname(__FILE__) . '/lib/api_product.php' );
+require_once ( dirname(__FILE__) . '/lib/api_shipping.php' );
 
 class bizuno_api
 {
@@ -36,20 +36,22 @@ class bizuno_api
         register_activation_hook  ( __FILE__ , [ $this, 'activate' ] );
         register_deactivation_hook( __FILE__ , [ $this, 'deactivate' ] );
         $this->initializeBizuno();
-        $this->admin    = new \bizuno\admin(); // loads/updates the options for the plugin
+        $this->admin    = new \bizuno\api_admin(); // loads/updates the options for the plugin
         $this->options  = $this->admin->options;
-        $this->order    = new \bizuno\order($this->options);
-        $this->product  = new \bizuno\product($this->options);
-        $this->shipping = new \bizuno\shipping($this->options);
+        $this->order    = new \bizuno\api_order($this->options);
+        $this->product  = new \bizuno\api_product($this->options);
+        $this->shipping = new \bizuno\api_shipping($this->options);
         // WordPress Actions
-        add_action ( 'admin_menu',              [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
         add_action ( 'init',                    [ $this, 'initializePlugin' ] );
+        add_action ( 'admin_init',              [ $this->admin, 'bizuno_api_register_settings' ] );
+        add_action ( 'admin_menu',              [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
+        add_action ( 'admin_notices',           [ $this, 'bizAdminNotices' ], 20 );
         add_action ( 'rest_api_init',           [ $this, 'ps_register_rest' ] );
         add_action ( 'woocommerce_init',        [ $this, 'ps_woocommerce_init' ] );
         add_action ( 'plugins_loaded',          [ $this, 'ps_plugins_loaded' ] );
         add_action ( 'bizuno_api_image_process',[ $this->product, 'cron_image' ] );
-        add_action ( 'admin_notices',           [ $this, 'bizAdminNotices' ], 20 );
         // WordPress Filters
+        add_filter ( 'bizuno_settings_tabs',    [ $this->admin, 'bizuno_api_register_tab' ] );
         add_filter ( 'mime_types',              [ $this, 'biz_allow_webp_upload' ] ); // filter to allow mime type .webp images to be uploaded
         // WooCommerce hooks
         if ( is_plugin_active ( 'woocommerce/woocommerce.php' ) ) {

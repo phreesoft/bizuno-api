@@ -21,7 +21,7 @@
  * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-01-19
+ * @version    7.x Last Update: 2026-02-11
  * @filesource /lib/shipping.php
  */
 
@@ -29,7 +29,7 @@ namespace bizuno;
 
 if ( ! defined( 'ABSPATH' ) ) exit;
 
-class shipping extends common
+class api_shipping extends api_common
 {
     function __construct($options=[])
     {
