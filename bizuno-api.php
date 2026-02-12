@@ -1,21 +1,23 @@
 <?php
 /**
- * Plugin Name:       Bizuno API
+ * Plugin Name:       Bizuno API – Inventory/Order Management for WooCommerce
+ * Plugin URI:        https://github.com/phreesoft/bizuno-api
  * Description:       Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
- * Version:           7.3.7.1
+ * Version:           7.3.8
  * Requires at least: 6.5
  * Tested up to:      6.9
- * Requires PHP:      8.0
+ * Requires PHP:      8.1
  * Author:            PhreeSoft, Inc.
  * Author URI:        https://www.phreesoft.com
- * Author Email:      support@phreesoft.com
+ * License:           AGPL-3.0-or-later
+ * License URI:       https://www.gnu.org/licenses/agpl-3.0.html
  * Text Domain:       bizuno-api
  * Domain Path:       /locale
- * License:           AGPL-3.0-or-later
- * License URI:       https://www.gnu.org/licenses/agpl-3.0.txt
  */
 
-if ( ! defined( 'ABSPATH' ) ) { exit; }
+if ( ! defined( 'ABSPATH' ) ) {
+    exit; // Exit if accessed directly.
+}
 
 // Library files for plugin operations
 require_once ( dirname(__FILE__) . '/lib/api_common.php' );
@@ -27,7 +29,7 @@ require_once ( dirname(__FILE__) . '/lib/api_shipping.php' );
 class bizuno_api
 {
     private $bizEnabled= false;
-    private $bizLib    = 'bizuno-wp';
+    private $bizLib    = 'bizuno-wp'; // needed to load Bizuno environment
 
     public function __construct()
     {
@@ -78,12 +80,11 @@ class bizuno_api
         }
     }
 
-    public function bizuno_api_plugins_loaded()
-    {
-        if ( ! is_plugin_active ( 'woocommerce/woocommerce.php' ) ) { return; }
+    public function bizuno_api_plugins_loaded() {
+        if ( ! is_plugin_active( 'woocommerce/woocommerce.php' ) ) { return; }
         bizuno_shipping_method_init();
     }
-    
+
     private function initializeBizuno()
     {
         if ( !defined( 'BIZUNO_FS_LIBRARY' ) ) {
@@ -139,16 +140,30 @@ class bizuno_api
         }
     }
     
-    public function check_access(WP_REST_Request $request)
-    {
-        \bizuno\msgDebug("\nEntering check_access");
-        $email = $request->get_header('email');
-        $pass  = $request->get_header('pass');
-        if (empty($email) || empty($pass)) { return false; }
-        $userID= wp_authenticate( $email, $pass );
-        return !empty($userID) ? true : false;
+    public function check_access( WP_REST_Request $request ) {
+        \bizuno\msgDebug( "\nEntering check_access" );
+
+        $email = sanitize_email( $request->get_header( 'email' ) );
+        $pass  = $request->get_header( 'pass' );
+
+        if ( empty( $email ) || empty( $pass ) ) {
+            return new WP_Error( 'rest_forbidden', esc_html__( 'Missing credentials.', 'bizuno-api' ), array( 'status' => 401 ) );
+        }
+
+        $user = wp_authenticate( $email, $pass );
+
+        if ( is_wp_error( $user ) ) {
+            return new WP_Error( 'rest_forbidden', esc_html__( 'Invalid credentials.', 'bizuno-api' ), array( 'status' => 401 ) );
+        }
+
+        // Optional: Add capability check for extra security
+        if ( ! user_can( $user->ID, 'manage_woocommerce' ) ) {
+            return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-api' ), array( 'status' => 403 ) );
+        }
+
+        return true;
     }
-    
+
     public function biz_allow_webp_upload($existing_mimes) { // allows image uploads of mime type webp
         $existing_mimes['webp'] = 'image/webp';
         return $existing_mimes;
@@ -173,6 +188,8 @@ class bizuno_api
     public function activate()
     {
         if ( is_plugin_active( 'woocommerce/woocommerce.php' ) ) { // set all existing orders to downloaded to hide Download button for past orders
+            // Optional: Skip migration if already done
+            if ( get_option( 'bizuno_order_migration_done', false ) ) { return; }
             $batch_size   = 200; // adjust based on your server (100–500 is usually safe)
             $offset       = 0;
             $updated      = 0;
@@ -191,6 +208,7 @@ class bizuno_api
                 $offset       += $batch_size;
                 sleep( 1 ); // Give server a tiny breather (optional)
             } while ( true );  // loop ends when $orders is empty
+            update_option( 'bizuno_order_migration_done', true );
             if ( function_exists( 'wc_get_logger' ) ) { // Log final result (or show admin notice)
                 wc_get_logger()->info( "Bizuno order export flag update complete. Total orders: $orders_total, Updated: $updated" );
             }
@@ -205,71 +223,62 @@ class bizuno_api
 }
 new bizuno_api();
 
-function bizuno_api_get_html()
-{
-    if (!current_user_can('manage_options')) { wp_die('Insufficient permissions'); }
-    echo '<div class="wrap">
-        <h1>Get Bizuno (Latest version from the Bizuno.com website)</h1>';
-        if (isset($_POST['bizuno_install_private'])) {
-            check_admin_referer('bizuno_install_private');
-            if (bizuno_api_install_plugin()) { return; }
-        }
-        echo '<form method="post">';
-        wp_nonce_field('bizuno_install_private');
-        echo '<p>This will download and install the full Bizuno plugin from bizuno.com.</p>
-            <p><strong>No license key required</strong> – it’s now publicly available.</p>';
-        submit_button('Get Bizuno Now', 'primary', 'bizuno_install_private');
-        echo '</form></div>';
-}
+function bizuno_api_get_html() {
+    if ( ! current_user_can( 'manage_options' ) ) {
+        wp_die( 'Insufficient permissions' );
+    }
 
-function bizuno_api_install_plugin() {
-    if ( is_plugin_active('bizuno/bizuno.php' ) ) {
-        echo '<div class="updated"><p>Bizuno ERP is already installed and active!</p></div>';
+    echo '<div class="wrap"><h1>' . esc_html__( 'Get Bizuno', 'bizuno-api' ) . '</h1>';
+
+    if ( is_plugin_active( 'bizuno-accounting/bizuno-accounting.php' ) || is_plugin_active( 'bizuno/bizuno.php' ) ) {
+        echo '<div class="notice notice-success"><p>' . esc_html__( 'Bizuno is already installed and active!', 'bizuno-api' ) . '</p></div>';
         return;
     }
-    require_once ABSPATH . 'wp-admin/includes/file.php';
-    require_once ABSPATH . 'wp-admin/includes/plugin.php';
-    require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-    require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
-    $download_url = 'https://bizuno.com/downloads/latest/bizuno-wp.zip'; // bizLibURL is inside the class so re-define locally
-    $tmp_file = download_url($download_url);
-    if (is_wp_error($tmp_file)) {
-        echo '<div class="error"><p>Failed to download Bizuno: ' . esc_html($tmp_file->get_error_message()) . '</p></div>';
-        return;
-    }
-    $upgrader = new Plugin_Upgrader(new WP_Upgrader_Skin());
-    $installed = $upgrader->install($tmp_file, ['overwrite_package' => true]);
-    \wp_delete_file( $tmp_file ); // clean up temp file
-    if (!$installed || is_wp_error($installed)) {
-        echo '<div class="error"><p>Installation failed.</p></div>';
-        return;
-    }
-    $plugin_path = '/bizuno-wp/bizuno-wp.php';
-    if ( file_exists( WP_PLUGIN_DIR . $plugin_path ) ) { 
-        $activated = activate_plugin( $plugin_path, '', false, true );
-        if (is_wp_error($activated)) {
-            echo '<div class="error"><p>Installed but failed to activate: ' . esc_html($activated->get_error_message()) . '</p></div>';
-        } else {
-            echo '<div class="updated"><p><strong>Bizuno ERP has been successfully installed and activated!</strong></p>';
-            echo '<p><a href="' . esc_url ( home_url("/bizuno") ) . '" class="button button-primary" target="_blank">Go to Bizuno Dashboard →</a></p></div>'; // bizSlug is inside the class so re-define locally
-        }
-        return true;
-    }
-    echo '<div class="error"><p>Failed to activate Bizuno!</p></div>';
+
+    echo '<p>' . esc_html__( 'Install the official Bizuno Accounting plugin from the WordPress repository for full ERP integration.', 'bizuno-api' ) . '</p>';
+    echo '<a href="' . esc_url( admin_url( 'plugin-install.php?tab=plugin-information&plugin=bizuno-accounting' ) ) . '" class="button button-primary">' . esc_html__( 'Install Bizuno Accounting', 'bizuno-api' ) . '</a>';
+
+    echo '</div>';
 }
 
 register_uninstall_hook(__FILE__, 'bizuno_api_uninstall');
 function bizuno_api_uninstall() {
     global $wpdb;
+
     // === 1. Legacy CPT orders (pre-HPOS or compatibility mode) ===
-    $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", 'bizuno_order_exported' ) );
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
+    $wpdb->query(
+        $wpdb->prepare(
+            "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s",
+            'bizuno_order_exported'
+        )
+    );
+
     // === 2. HPOS orders (WooCommerce 7.1+ with HPOS enabled) ===
     $table_name = $wpdb->prefix . 'wc_orders_meta';
+
+    // Only attempt delete if the table actually exists
+    // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
     if ( $wpdb->get_var( $wpdb->prepare( "SHOW TABLES LIKE %s", $table_name ) ) === $table_name ) {
-        $wpdb->query( $wpdb->prepare( "DELETE FROM {$table_name} WHERE meta_key = %s", 'bizuno_order_exported' ) );
+        $wpdb->query(
+            $wpdb->prepare(
+                // Use %i placeholder for identifiers (table/column names) – available in WP 6.2+
+                // If supporting < WP 6.2, fall back to direct interpolation with comment suppression
+                "DELETE FROM %i WHERE meta_key = %s",
+                $table_name,
+                'bizuno_order_exported'
+            )
+        );
     }
+
+    // Optional logging – only in debug mode, and use wc_get_logger() for WooCommerce context (better)
     if ( defined( 'WP_DEBUG' ) && WP_DEBUG && defined( 'WP_DEBUG_LOG' ) && WP_DEBUG_LOG ) {
-        error_log( 'Bizuno ISP uninstall: Removed bizuno_order_exported meta from postmeta and wc_orders_meta.' );
+        if ( function_exists( 'wc_get_logger' ) ) {
+            wc_get_logger()->debug(
+                'Bizuno API uninstall: Removed bizuno_order_exported meta from postmeta and wc_orders_meta.',
+                array( 'source' => 'bizuno-api' )
+            );
+        }
     }
 }
 

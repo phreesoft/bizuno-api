@@ -56,9 +56,6 @@ if ( !defined( 'BIZUNO_STRIP_SLASHES' ) ) { define('BIZUNO_STRIP_SLASHES', true)
 require_once ( BIZUNO_FS_LIBRARY . 'portal/controller.php' );
 require_once ( BIZUNO_FS_LIBRARY . 'bizunoCFG.php' );
 
-if (!isset($msgStack)|| !($msgStack instanceof \bizuno\messageStack)){ $msgStack = new \bizuno\messageStack(); }
-if (!isset($cleaner) || !($cleaner  instanceof \bizuno\cleaner))     { $cleaner  = new \bizuno\cleaner(); }
-if (!isset($io)      || !($io       instanceof \bizuno\io))          { $io       = new \bizuno\io(); }
-if (!isset($db)      || !($db       instanceof \bizuno\db))          { $db       = new \bizuno\db(BIZUNO_DB_CREDS); }
+//if (!isset($msgStack)|| !($msgStack instanceof \bizuno\messageStack)){ $msgStack = new \bizuno\messageStack(); }
 
 msgDebug("\nFinished instantiating Bizuno.");

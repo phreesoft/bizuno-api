@@ -18,7 +18,7 @@
  * needs please contact PhreeSoft for more information.
  *
  * @name       Bizuno ERP
- * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
+ * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
  * @version    7.x Last Update: 2026-02-10
@@ -110,7 +110,7 @@ class api_admin extends api_common
     function bizuno_ensure_shared_menu_and_general_tab()
     {
         if ( defined( 'BIZUNO_MENU_ALREADY_CREATED' ) ) { return; }
-        add_submenu_page( 'options-general.php', 'Bizuno Settings', 'Bizuno New', 'manage_options', BIZUNO_SETTINGS_PAGE_SLUG, [ $this, 'bizuno_render_shared_settings_page' ] );
+        add_submenu_page( 'options-general.php', 'Bizuno Settings', 'Bizuno', 'manage_options', BIZUNO_SETTINGS_PAGE_SLUG, [ $this, 'bizuno_render_shared_settings_page' ] );
         define( 'BIZUNO_MENU_ALREADY_CREATED', true );
     }
 
@@ -144,7 +144,7 @@ class api_admin extends api_common
             if ( '' === $raw_pass ) { // Field left blank
 //              $new_options['bizuno_tax_rest_user_pass'] remains old value
             } elseif ( strlen( $raw_pass ) < 8 ) { // Keep old password on validation failure
-                add_settings_error( 'bizuno_general_options', 'password_too_short', __( 'Password @PhreeSoft must be at least 8 characters long.', 'bizuno-sales-tax' ), 'error' );
+                add_settings_error( 'bizuno_general_options', 'password_too_short', __( 'Password @PhreeSoft must be at least 8 characters long.', 'bizuno-api' ), 'error' );
             } else {
                 $new_options['bizuno_tax_rest_user_pass'] = $this->encrypt_password( $raw_pass );
             }
@@ -156,7 +156,7 @@ class api_admin extends api_common
     {
         $options = get_option( 'bizuno_general_options', [] );
         $value   = isset( $options['bizuno_tax_rest_user_name'] ) ? esc_attr( $options['bizuno_tax_rest_user_name'] ) : '';
-        echo '<input type="text" name="' . esc_attr( 'bizuno_general_options' ) . '[bizuno_tax_rest_user_name]" value="' . $value . '" class="regular-text" />';
+        echo '<input type="text" name="' . esc_attr( 'bizuno_general_options' ) . '[bizuno_tax_rest_user_name]" value="' . esc_attr ( $value ) . '" class="regular-text" />';
         echo '<p class="description">Username for @PhreeSoft REST API access.</p>';
     }
 
@@ -171,8 +171,16 @@ class api_admin extends api_common
 
     public function bizuno_render_shared_settings_page()
     {
-        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Access denied.', 'text-domain' ) ); }
-        $active_tab = isset( $_GET['tab'] ) ? sanitize_key( $_GET['tab'] ) : 'general';
+        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Access denied.', 'bizuno-api' ) ); }
+        $active_tab = 'general'; // default
+        if ( isset( $_GET['tab'] ) ) {
+            // 'switch-tab' is an arbitrary but unique action name — make it descriptive
+            if ( check_admin_referer( 'bizuno-tabs', '_wpnonce' ) ) {
+                $active_tab = sanitize_key( $_GET['tab'] );
+            }
+            // else: silently keep default (or wp_die() if you want to be strict)
+        }
+
         $tabs       = [];
         /**
          * Let every plugin register its tabs here
@@ -189,7 +197,7 @@ class api_admin extends api_common
         } );
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e( 'Bizuno Settings', 'text-domain' ); ?></h1>
+            <h1><?php esc_html_e( 'Bizuno Settings', 'bizuno-api' ); ?></h1>
             <h2 class="nav-tab-wrapper">
                 <?php foreach ( $tabs as $tab_id => $tab ) : ?>
                     <?php
@@ -204,7 +212,7 @@ class api_admin extends api_common
             <form method="post" action="options.php">
                 <?php
                 if ( isset( $tabs[ $active_tab ]['callback'] ) && is_callable( $tabs[ $active_tab ]['callback'] ) ) { call_user_func( $tabs[ $active_tab ]['callback'] ); }
-                else { echo '<p>' . esc_html__( 'No content for this tab.', 'text-domain' ) . '</p>'; }
+                else { echo '<p>' . esc_html__( 'No content for this tab.', 'bizuno-api' ) . '</p>'; }
                 if ( in_array( $active_tab, [ 'general' ], true ) ) {
                     settings_fields( 'bizuno_general_options' );
                     submit_button();

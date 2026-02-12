@@ -18,7 +18,7 @@
  * needs please contact PhreeSoft for more information.
  *
  * @name       Bizuno ERP
- * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
+ * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
  * @version    7.x Last Update: 2026-02-11
@@ -44,12 +44,12 @@ class api_shipping extends api_common
         $layout = ['pkg'=>$package, 'rates'=>[]];
         if (empty($package['destination']['postcode'])) { return $layout['rates']; }
         $this->client_open();
-        msgDebug("\nCalling API with package = ".print_r($package['destination'], true));
+        msgDebug("\nCalling API with package = ".msgPrint($package['destination']));
         $resp = json_decode($this->cURL('get', $package['destination'], 'shipGetRates'), true);
-        msgDebug("\nBizuno-API getRates received back from REST: ".print_r($resp, true));
+        msgDebug("\nBizuno-API getRates received back from REST: ".msgPrint($resp));
         if (isset($resp['message'])) { msgMerge($resp['message']); }
         $layout['rates'] = !empty($resp['rates']) ? $resp['rates'] : [];
-        msgDebug("\nSending back to WooCommerce: ".print_r($layout, true));
+        msgDebug("\nSending back to WooCommerce: ".msgPrint($layout));
         $this->client_close();
         return $layout['rates'];
     }

@@ -18,7 +18,7 @@
  * needs please contact PhreeSoft for more information.
  *
  * @name       Bizuno ERP
- * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
+ * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
  * @version    7.x Last Update: 2026-02-11
@@ -58,7 +58,7 @@ class api_common
         $qParams = $request->get_params(); // retrieve the get parameters
         if (empty($qParams)) { 
             $qParams = $request->get_query_params();
-            msgDebug("\nTried again with get_query_params: ".print_r($qParams, true));
+            msgDebug("\nTried again with get_query_params: ".msgPrint($qParams));
         }
         return $qParams;
     }
@@ -79,7 +79,7 @@ class api_common
     function cURL( $type='get', $data=[], $endPoint='' )
     {
         $options = get_option( 'bizuno_api_options', [] );
-        msgDebug( "\nEntering cURL (WP HTTP API) with endPoint = $endPoint and options = " . print_r( $options, true ) );
+        msgDebug( "\nEntering cURL (WP HTTP API) with endPoint = $endPoint and options = " . msgPrint( $options ) );
         $base_url = $options['url'] ?? '';
         $url      = trailingslashit( $base_url ) . '?bizRt=portal/api/' . $endPoint;
         // Build query string for GET
@@ -119,7 +119,7 @@ class api_common
         $status_code= wp_remote_retrieve_response_code( $response );
         if ( 200 !== $status_code ) { msgAdd( "Received HTTP $status_code from API.", 'caution' ); }
         if ( empty( $body ) )       { msgAdd( "Oops! Received an empty response. Likely a connection/protocol issue (e.g., TLS/ALPN mismatch).", 'caution' ); }
-        msgDebug( "\nAPI Common received back from REST: " . print_r( $body, true ) );
+        msgDebug( "\nAPI Common received back from REST: " . msgPrint( $body ) );
         // If response has 'message' key (your original logic)
         $decoded = json_decode( $body, true );
         if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['message'] ) ) {
@@ -133,7 +133,7 @@ class api_common
 
     public function setNotices($resp=[])
     {
-        msgDebug("\nEntering setNotices with resp = ".print_r($resp, true));
+        msgDebug("\nEntering setNotices with resp = ".msgPrint($resp));
         if ( empty( $resp['messages'] ) ) { return; }
         $notices = [];
         $user_id = get_current_user_id();
@@ -147,21 +147,53 @@ class api_common
                 if ( $text ) { $notices[] = [ 'class'=>"notice notice-{$wc_type} is-dismissible", 'message'=>$text ]; }
             }
         }
-        msgDebug("\nnotices is ready to set transients: ".print_r($notices, true));
+        msgDebug("\nnotices is ready to set transients: ".msgPrint($notices));
         if ( !empty( $notices ) ) { \set_transient( "bizuno_order_download_notices_{$user_id}", $notices, 45 ); }
     }
-    public function get_meta_values( $meta_key='', $post_type='post', $post_status='publish' )
-    {
-        global $wpdb;
-        if ( empty( $meta_key ) ) { return; }
-        $cache_key   = 'bizuno_meta_values_' . md5( $meta_key . '|' . $post_type . '|' . $post_status );
-        $meta_values = get_transient( $cache_key );
-        if ( false === $meta_values ) {
-            $meta_values = $wpdb->get_col(
-                $wpdb->prepare( "SELECT pm.meta_value FROM {$wpdb->postmeta} pm LEFT JOIN {$wpdb->posts} p ON p.ID = pm.post_id 
-                     WHERE pm.meta_key = %s AND p.post_type = %s AND p.post_status = %s", $meta_key, $post_type, $post_status ) );
-            set_transient( $cache_key, $meta_values, 3600 ); // 1 Hour
+
+    public function get_meta_values( $meta_key = '', $post_type = 'post', $post_status = 'publish' ) {
+        if ( empty( $meta_key ) ) {
+            return array();
         }
+
+        $cache_key = 'bizuno_meta_values_' . md5( $meta_key . '|' . $post_type . '|' . $post_status );
+        $meta_values = get_transient( $cache_key );
+
+        if ( false === $meta_values ) {
+            $posts = get_posts( array(
+                'post_type'      => $post_type,
+                'post_status'    => $post_status,
+                'meta_key'       => $meta_key,          // only posts that have this meta_key
+                'posts_per_page' => -1,                 // get all (see note below)
+                'fields'         => 'ids',              // only need IDs → faster & lighter
+                'no_found_rows'  => true,               // skip pagination count
+                'update_post_meta_cache' => false,
+                'update_post_term_cache' => false,
+            ) );
+
+            $meta_values = array();
+
+            if ( ! empty( $posts ) ) {
+                // Bulk-fetch all meta_values for these post IDs (efficient)
+                $meta_data = get_metadata( 'post', $posts, $meta_key, false ); // false = return array of values, not single
+
+                foreach ( $meta_data as $post_id => $values ) {
+                    // Flatten if multiple values per post, or take first
+                    if ( is_array( $values ) ) {
+                        $meta_values = array_merge( $meta_values, $values );
+                    } else {
+                        $meta_values[] = $values;
+                    }
+                }
+
+                // Optional: unique + sort if that's your intent (get_col returns unique by nature in many cases)
+                $meta_values = array_unique( $meta_values );
+                sort( $meta_values ); // or asort() if associative needed
+            }
+
+            set_transient( $cache_key, $meta_values, 3600 ); // 1 hour
+        }
+
         return $meta_values;
     }
     

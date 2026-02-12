@@ -1,11 +1,11 @@
 === Bizuno API – Inventory/Order Management for WooCommerce ===
-Stable tag: 7.3.7
-Contributors: phreesoft
+Stable tag: 7.3.8
+Contributors: Bizuno Project Dev Team
 Donate link: https://www.bizuno.com/donate/
 Tags: bizuno, erp, accounting, woocommerce, rest-api
 Requires at least: 6.5
 Tested up to: 6.9
-Requires PHP: 8.0
+Requires PHP: 8.1
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 

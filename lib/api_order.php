@@ -18,7 +18,7 @@
  * needs please contact PhreeSoft for more information.
  *
  * @name       Bizuno ERP
- * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
+ * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
  * @version    7.x Last Update: 2026-02-11
@@ -107,7 +107,7 @@ class api_order extends api_common
     /************ Hooks for WooCommerce Order Admin page ****************/
     public function bizuno_api_post_payment($order_id)
     {
-        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = ".\get_option ( 'bizuno_api_autodownload', false )." and bizuno_order_exported = ".print_r(\get_post_meta ( $order_id, 'bizuno_order_exported' ), true));
+        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = ".\get_option ( 'bizuno_api_autodownload', false )." and bizuno_order_exported = ".msgPrint(\get_post_meta ( $order_id, 'bizuno_order_exported' )));
         if ( !empty ( \get_post_meta ( $order_id, 'bizuno_order_exported' ) ) ) { return; } // already downloaded, prevents duplicate download errors
         if ( in_array ( \get_option ( 'bizuno_api_autodownload', false ), ['on', 'yes', 1] ) ) {
             $this->orderExport($order_id); // call return to bit bucket as as all messsages are suppressed
@@ -118,18 +118,35 @@ class api_order extends api_common
     {
         $this->bizuno_api_manual_download($order->id);
     }
+
     public function bizuno_api_manual_download( $order_id = 0 ) {
-        if ( empty( $order_id ) ) { $order_id = (int) $_GET['biz_order_id'] ?? 0; }
+        // Default to passed $order_id (if called internally)
         if ( empty( $order_id ) ) {
-            wc_add_notice( __( 'No order ID provided.', 'bizuno-api' ), 'error' );
+            if ( ! isset( $_GET['biz_order_id'] ) || ! isset( $_GET['_wpnonce'] ) ) {
+                wc_add_notice( __( 'Invalid request – missing parameters.', 'bizuno-api' ), 'error' );
+                wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
+                exit;
+            }
+
+            // Verify the nonce – dies with "Are you sure?" if invalid/missing
+            check_admin_referer( 'bizuno_manual_order_export', '_wpnonce' );
+
+            $order_id = (int) $_GET['biz_order_id'];
+        }
+
+        if ( empty( $order_id ) || $order_id <= 0 ) {
+            wc_add_notice( __( 'No valid order ID provided.', 'bizuno-api' ), 'error' );
             wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
             exit;
         }
+
         $resp = $this->orderExport( $order_id );
         $this->setNotices( $resp );
+
         wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
         exit;
     }
+
     public function bizuno_api_order_download($order_id)
     {
         $this->orderExport($order_id);
@@ -143,11 +160,11 @@ class api_order extends api_common
     {
         if ( empty ( $orderID ) ) { magAdd("Bad orderID passed: $orderID"); return; }
         $this->client_open();
-        if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".print_r($order, true));  } // return;
-        msgDebug("\nMapped order = ".print_r($order, true));
+        if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".msgPrint($order));  } // return;
+        msgDebug("\nMapped order = ".msgPrint($order));
         $resp   = json_decode($this->cURL('post', $order, 'orderAdd'), true);
         $mainID = !empty($resp['ID']) ? $resp['ID'] : 0;
-        msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".print_r($resp, true));
+        msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".msgPrint($resp));
         if ( !empty($mainID) ) {
             msgDebug("\nUpdating post meta as a valid ID was returned.");
             $wcOrder = \wc_get_order($orderID);
@@ -246,7 +263,7 @@ class api_order extends api_common
      */
     public function shipConfirm($orders=[])
     {
-        msgDebug("\nEntering shipConfirm"); // with options = ".print_r($this->options, true));
+        msgDebug("\nEntering shipConfirm"); // with options = ".msgPrint($this->options));
         $order_cnt = 0;
         $order_list= [];
         $prefix    = $this->options['prefix_order'];

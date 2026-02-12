@@ -18,7 +18,7 @@
  * needs please contact PhreeSoft for more information.
  *
  * @name       Bizuno ERP
- * @author     Dave Premo, PhreeSoft <support@phreesoft.com>
+ * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
  * @version    7.x Last Update: 2026-02-11
@@ -154,7 +154,7 @@ class api_product extends api_common
     public function productImport($post=[])
     {
         msgDebug("\nEntering productImport");
-        set_time_limit(60); // set timeout to 1 minute, imagemgk is verty slow when doing a full upload
+//      set_time_limit(60); // I don't think this is needed anymore, images are processed via cron
         if (!is_array($post) || empty($post['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
         msgDebug(" with sku = {$post['SKU']} and sizeof product = ".sizeof($post));
         $this->bizProduct = $this->getProduct($post);
@@ -225,6 +225,7 @@ class api_product extends api_common
         $this->productID = \wc_get_product_id_by_sku($post['SKU']);
         msgDebug("\nEntering getProduct, fetched product ID = $this->productID");
         if (empty($this->productID)) { // The new way returns zero for products uploaded in early versions of the API, try to old way, just in case
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
             $this->productID = $wpdb->get_var( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value = %s LIMIT 1", $post['SKU'] ) );
             msgDebug("\nTried the old way, product ID is now = $this->productID");
         }
@@ -284,11 +285,7 @@ class api_product extends api_common
                 $product_id = wc_get_product_id_by_sku( $related );
                 if ($product_id !== false) { $post['related'][] = $product_id; }
             }
-            msgDebug("related items found:".print_r($post['related'], true));
-        }
-        if (isset($post['related'])) {
-//          dbGetResult("DELETE FROM `". SOME_DB_PREFIX . "postmeta` WHERE post_id = '". (int)$product_id . "' AND meta_key = '_crosssell_ids';");
-//          dbGetResult("INSERT INTO " . SOME_DB_PREFIX . "postmeta SET post_id = '"   . (int)$product_id . "', meta_key = '_crosssell_ids' , meta_value = '" . $post['related'] . "';");
+            msgDebug("related items found:".msgPrint($post['related']));
         }
     }
 
@@ -308,11 +305,11 @@ class api_product extends api_common
      */
     private function productTags($post, $product_id)
     {
-        msgDebug("\nEntering productTags product_id = $product_id with WooCommerceTags = ".print_r($post['WooCommerceTags'], true));
+        msgDebug("\nEntering productTags product_id = $product_id with WooCommerceTags = ".msgPrint($post['WooCommerceTags']));
         if (empty($post['WooCommerceTags'])) { return; }
         $IDs = [];
         $current = \get_the_terms($product_id, 'product_tag');
-        msgDebug("\nRetrieved terms = ".print_r($current, true));
+        msgDebug("\nRetrieved terms = ".msgPrint($current));
         foreach ( (array)$current as $term) {
             if (!empty($term->name)) { $IDs[] = $term->name; }
         }
@@ -321,9 +318,9 @@ class api_product extends api_common
         foreach ($tags as $tag) {
             if (!empty(trim($tag))) { $IDs[] = trim($tag); } // sanitize_title makes the slug (lower no spaces) and also is used as the label which we don't want
         }
-        msgDebug("\nSetting post tags to IDs = ".print_r($IDs, true));
+        msgDebug("\nSetting post tags to IDs = ".msgPrint($IDs));
         $results = \wp_set_object_terms($product_id, $IDs, 'product_tag');
-        msgDebug("\nResults from setting tags = ".print_r($results, true));
+        msgDebug("\nResults from setting tags = ".msgPrint($results));
     }
 
     /**
@@ -353,13 +350,13 @@ class api_product extends api_common
                 $descName = trim($term);
                 $niceName.= '-'.trim(strtolower(str_replace([':',' '], '-', $term)), " -"); // grow the nice name with the category
                 $termIDs  = term_exists( $descName, 'product_cat', !empty($parent)?$parent:null );
-                msgDebug("\nSearching for descName = $descName, parent = $parent and resulted in termIDs = ".print_r($termIDs, true));
+                msgDebug("\nSearching for descName = $descName, parent = $parent and resulted in termIDs = ".msgPrint($termIDs));
                 if (empty($termIDs)) {
                     $termData= [ 'slug'=>$niceName, 'parent'=>$parent ]; // 'description'=>$descName, // leave description blank so user can edit through WooCommerce
-                    msgDebug("\nInserting term data: ".print_r($termData, true));
+                    msgDebug("\nInserting term data: ".msgPrint($termData));
                     $termIDs = wp_insert_term( $descName, 'product_cat', $termData );
                 }
-                msgDebug("\nSetting post termIDs: ".print_r($termIDs, true));
+                msgDebug("\nSetting post termIDs: ".msgPrint($termIDs));
                 wp_set_post_terms( $product_id, [$termIDs['term_id']], 'product_cat', $this->endCatOnly?false:true );
                 $parent = $termIDs['term_id'];
             }
@@ -383,22 +380,22 @@ class api_product extends api_common
         global $wpdb;
         msgDebug("\nEntering productAttributes");
         if (empty($post['Attributes'])) { return; }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
         $result = $wpdb->get_results( $wpdb->prepare( "SELECT * FROM $wpdb->term_taxonomy WHERE taxonomy LIKE %s", $wpdb->esc_like( 'pa_' ) . '%' ), ARRAY_A );
-//      $result     = dbGetMulti(SOME_DB_PREFIX.'term_taxonomy', "taxonomy LIKE 'pa_%'");
         $pa_attr_ids= [];
         foreach ($result as $row) { $pa_attr_ids[] = $row['term_taxonomy_id']; }
         if (sizeof($pa_attr_ids)) { // clear out the current attributes
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
             $wpdb->query( $wpdb->prepare( "DELETE FROM $wpdb->term_relationships WHERE object_id = %d AND term_taxonomy_id IN (" . implode(',', array_fill(0, count($pa_attr_ids), '%d')) . ")",
                 array_merge( [ (int)$product_id ], array_map('intval', $pa_attr_ids) ) ) );
-//          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."term_relationships WHERE object_id=$product_id AND term_taxonomy_id IN (".implode(',',$pa_attr_ids).")");
         }
         $productAttr= [];
         foreach ($post['Attributes'] as $idx => $row) {
             if (empty($row['title']) || empty($row['index'])) { continue; }
             $attrSlug= $this->getPermaLink($row['index']);
 //          $attrSlug= $this->getPermaLink($post['AttributeCategory'].'_'.strtolower($row['index'])); // creates a lot of attributes and causes filtering issues
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
             $exists  = $wpdb->get_var( $wpdb->prepare( "SELECT attribute_name FROM {$wpdb->prefix}woocommerce_attribute_taxonomies WHERE attribute_name = %s", $attrSlug));
-//          $exists  = dbGetValue(SOME_DB_PREFIX.'woocommerce_attribute_taxonomies', 'attribute_name', "attribute_name='$attrSlug'");
             if (!$exists) {
                 $newAttr = [
                     'attribute_name'     => sanitize_title( $attrSlug ),
@@ -406,6 +403,7 @@ class api_product extends api_common
                     'attribute_type'     => 'text',
                     'attribute_orderby'  => 'name_num',
                     'attribute_public'   => 0];
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
                 $wpdb->insert( $wpdb->prefix . 'woocommerce_attribute_taxonomies', $newAttr, [ '%s', '%s', '%s', '%s', '%d'] );
 //                dbWrite(SOME_DB_PREFIX.'woocommerce_attribute_taxonomies', $newAttr);
             }
@@ -413,7 +411,7 @@ class api_product extends api_common
             // Update postmeta with attribute key => value pair for searching...
             update_post_meta( $product_id, "biz_".strtolower($row['index']), $row['value'] );
         }
-        msgDebug("\nUpdating product postmeta: ".print_r($productAttr, true));
+        msgDebug("\nUpdating product postmeta: ".msgPrint($productAttr));
         update_post_meta( $product_id, '_product_attributes', $productAttr );
     }
 
@@ -442,14 +440,14 @@ class api_product extends api_common
      */
     private function productVariations($variations, $product_id)
     {
-        msgDebug("\nEntering productVariations with variations = ".print_r($variations, true));
+        msgDebug("\nEntering productVariations with variations = ".msgPrint($variations));
         // Process the attributes
         $allAttrs = $this->bizProduct->get_attributes();
         $attrNames= [];
         foreach ($allAttrs as $tmp) { $attrNames[] = $tmp['name']; }
         $cnt      = 0;
         foreach ($variations['attributes'] as $attr) {
-            msgDebug("\nProcessing attribute".print_r($attr, true));
+            msgDebug("\nProcessing attribute".msgPrint($attr));
             $attribute = new \WC_Product_Attribute();
             $attribute->set_name( $attr['name'] );
             $attribute->set_options( $attr['options'] );
@@ -467,7 +465,7 @@ class api_product extends api_common
         $existingIDs = $this->getCurrentVariations($product_id);
         // foreach variation in the request
         foreach ( $variations['variations'] as $value ) {
-            msgDebug("\nWorking with variation value: ".print_r($value, true));
+            msgDebug("\nWorking with variation value: ".msgPrint($value));
             $variation_id = 0;
             if (!empty($existingIDs)) { $variation_id = array_shift($existingIDs); }
             else { // make a new variation
@@ -486,7 +484,7 @@ class api_product extends api_common
             $variation = new \WC_Product_Variation( $variation_id );
             msgDebug("\nSetting the SKU to {$value['sku']}");
             $variation->set_sku( $value['sku'] );
-            msgDebug("\nSetting the attributes: ".print_r($value['attributes'], true));
+            msgDebug("\nSetting the attributes: ".msgPrint($value['attributes']));
             $variation->set_attributes( $value['attributes'] );
             $variation->set_weight(''); // weight (reseting)
             $variation->set_regular_price( $value['regular_price'] );
@@ -505,7 +503,7 @@ class api_product extends api_common
             $variation->set_backorders($this->options['inv_backorders']);
             $variation->save(); // Save the data
         }
-        msgDebug("\nSetting default variations to ".print_r($variations['variations'][0]['attributes'], true));
+        msgDebug("\nSetting default variations to ".msgPrint($variations['variations'][0]['attributes']));
         $this->bizProduct->set_default_attributes( $variations['variations'][0]['attributes'] );
         // delete left over variants that are no longer used
         if (sizeof($existingIDs) > 0) { // We still have some more variations, delete them
@@ -531,7 +529,7 @@ class api_product extends api_common
             $variation_id = $variation->ID;
             $output[] = $variation_id;
         }
-        msgDebug("\nReturning from getCurrentVariations with output: ".print_r($output, true));
+        msgDebug("\nReturning from getCurrentVariations with output: ".msgPrint($output));
         return $output;
     }
 
@@ -568,7 +566,7 @@ class api_product extends api_common
             $this->bizProduct->set_image_id($imgIdx);
         }
         // Set the image gallery (for the rest of the images)
-        msgDebug("\nReady to process extra images with media = ".print_r($media, true));
+        msgDebug("\nReady to process extra images with media = ".msgPrint($media));
         $xIDs   = [];
         foreach ($media as $props) {
             $imgIdx = $this->setImage($props, $product_id, $replace);
@@ -596,23 +594,22 @@ class api_product extends api_common
         global $wpdb;
         msgDebug("\nEntering setImageCleaner with product_id = $product_id");
         // first check thumbnails for multiple records, should only be one
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
         $metaIDs = $wpdb->get_results( $wpdb->prepare( "SELECT meta_id, meta_value FROM $wpdb->postmeta WHERE post_id = %d AND meta_key = '_thumbnail_id'", $product_id ), ARRAY_A);
-//      $metaIDs = dbGetMulti(SOME_DB_PREFIX.'postmeta', "post_id=$product_id AND meta_key='_thumbnail_id'");
-        
         
         if (sizeof($metaIDs) > 1) {
             for ($i=1; $i<sizeof($metaIDs); $i++) { // earlier bug where multiple thumbnails were generated
-                msgDebug("\nDeleting duplicate thumbnail with ID = ".print_r($metaIDs[$i], true));
+                msgDebug("\nDeleting duplicate thumbnail with ID = ".msgPrint($metaIDs[$i]));
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
                 $wpdb->delete( $wpdb->postmeta, [ 'meta_id' => (int) $metaIDs[$i]['meta_id'] ], [ '%d' ] );
-//              dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE meta_id={$metaIDs[$i]['meta_id']}");
                 \wp_delete_post( $metaIDs[$i]['post_id'], true );
             }
         }
         // If the same image is used for multiple products, then multiple media posts were generated, clean these up and start over.
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
         $dupImages = $wpdb->get_results( $wpdb->prepare( "SELECT ID FROM $wpdb->posts WHERE post_parent <> 0 AND post_parent = %d AND post_type = 'attachment' ORDER BY ID", $product_id ), ARRAY_A);
-//      $dupImages = dbGetMulti(SOME_DB_PREFIX.'posts', "post_parent<>0 AND post_parent=$product_id AND post_type='attachment'", 'ID', ['ID']);
         foreach ($dupImages as $imageID) {
-            msgDebug("\nDeleting duplicate images with ID = ".print_r($imageID, true));
+            msgDebug("\nDeleting duplicate images with ID = ".msgPrint($imageID));
             \wp_delete_post( $imageID['ID'], true );
         }
     }
@@ -634,22 +631,20 @@ class api_product extends api_common
         $guid         = $props['path'] . $props['name'];
         msgDebug("\nLooking for all images at: $guid");
         // BOF - Clean out duplicate image posts pointing to the same file
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
         $postIDs = $wpdb->get_results( $wpdb->prepare( "SELECT post_id FROM $wpdb->postmeta WHERE meta_key = '_wp_attached_file' AND meta_value = %s ORDER BY post_id", $guid ), ARRAY_A );
-//      $postIDs = dbGetMulti(SOME_DB_PREFIX.'postmeta', "meta_key='_wp_attached_file' AND meta_value='$guid'", 'post_id', ['post_id']);
-        msgDebug("\nRead the following ID's for this image path: ".print_r($postIDs, true));
+        msgDebug("\nRead the following ID's for this image path: ".msgPrint($postIDs));
         for ($i=1; $i<sizeof($postIDs); $i++) { // earlier bug where multiple thumbnails were generated pointing to same file location
             msgDebug("\nDeleting duplicate posts with same path and ID = {$postIDs[$i]['post_id']}");
             \wp_delete_post( (int) $postIDs[$i]['post_id'], true );
-//          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."posts WHERE ID={$postIDs[$i]['post_id']}");
-//          dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE post_id={$postIDs[$i]['post_id']}");
         }
         if (sizeof($postIDs)>0) {
             $post_id = absint( $postIDs[0]['post_id'] ?? 0 );
             $postExists = get_post_status( $post_id ) !== false;
-            msgDebug("\nRead to see if the record exists: ".print_r($postExists, true));
+            msgDebug("\nRead to see if the record exists: ".msgPrint($postExists));
             if (empty($postExists)) {
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
                 $wpdb->delete( $wpdb->postmeta, [ 'post_id' => (int) $postIDs[0]['post_id'] ], [ '%d' ] );
-//              dbGetResult("DELETE FROM ".SOME_DB_PREFIX."postmeta WHERE post_id={$postIDs[0]['post_id']}");
             }
             $imgID = !empty($postExists) ? $postIDs[0]['post_id'] :  0;
         } else {
@@ -687,9 +682,9 @@ class api_product extends api_common
             'post_type'     => 'attachment',
             'post_status'   => 'inherit'];
         if (!empty($imgID)) { $args['ID'] = $imgID; }
-        msgDebug("\nReady to insert image from $filename with args = ".print_r($args, true));
+        msgDebug("\nReady to insert image from $filename with args = ".msgPrint($args));
         $attach_id = \wp_insert_post( $args, true );
-        msgDebug("\nFinished inserting Image with returned id = ".print_r($attach_id, true));
+        msgDebug("\nFinished inserting Image with returned id = ".msgPrint($attach_id));
         if (!is_wp_error($attach_id)) {
             if ($attach_id==0) { msgDebug("\nForced attachment_id to be = $imgID"); $attach_id = $imgID; } // for some reason, WP returns 0 when the ID is set going into post and no error
             \update_post_meta( $attach_id, '_wp_attached_file', $guid ); // this needs to be there at a minimum or media details will not render image
@@ -734,14 +729,15 @@ class api_product extends api_common
         msgDebug("\nCleaned path = $clnPath");
         if (empty($clnPath)) { return false; }
         $dirs   = explode("/", $clnPath);
-        msgDebug("\nEXploded into dirs = ".print_r($dirs, true));
+        msgDebug("\nEXploded into dirs = ".msgPrint($dirs));
         $parent = 0;
         foreach ($dirs as $dir) {
             msgDebug("\nLooking for dir $dir with parent: $parent");
-
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
             $result = $wpdb->get_row( $wpdb->prepare( "SELECT id FROM {$wpdb->prefix}fbv WHERE name = %s AND parent = %d", $dir, $parent ) );
             if (is_null($result)) {
                 msgDebug("\nInserting into fbv with dir = $dir and parent = $parent");
+                // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
                 $wpdb->insert( $wpdb->prefix . 'bsi_fbv', ['name'=>$dir, 'parent'=>$parent], ['%s', '%d'] );
 //              $parent = dbWrite($wpdb->prefix.'fbv', ['name'=>$dir, 'parent'=>$parent]);  // no connected to 
             } else {
@@ -758,12 +754,13 @@ class api_product extends api_common
         global $wpdb;
         msgDebug("\nEntering setFBAttach with fileParent = $fileParent");
         if ( !$this->fileBirdActive ) { return; }
+        // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
         $result = $wpdb->get_row( $wpdb->prepare( "SELECT folder_id FROM {$wpdb->prefix}fbv_attachment_folder WHERE folder_id = %d AND attachment_id = %d LIMIT 1", absint( $fileParent ), absint( $attach_id ) ) );
-        msgDebug("\nRead from fbv_attachment_folder: ".print_r($result, true));
+        msgDebug("\nRead from fbv_attachment_folder: ".msgPrint($result));
         if (is_null($result)) {
             msgDebug("\nInserting into fbv_attachment_folder parent = $fileParent and attach_id = $attach_id");
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
             $result = $wpdb->insert( $wpdb->prefix . 'fbv_attachment_folder', ['folder_id'=>(int)$fileParent, 'attachment_id'=>(int)$attach_id], ['%d', '%d'] );
-//          dbGetResult($wpdb->prepare("INSERT INTO {$wpdb->prefix}fbv_attachment_folder (folder_id, attachment_id) VALUES ($fileParent, $attach_id)"));
         }
     }
 
@@ -778,11 +775,11 @@ class api_product extends api_common
     {
         $postData['ID'] = $post_id;
         $data = array_merge($postData, ['meta_input'=>$postMeta]);
-        msgDebug("\nInserting/Updating db table posts/postmeta with data = ".print_r($data, true));
+        msgDebug("\nInserting/Updating db table posts/postmeta with data = ".msgPrint($data));
         $postID = wp_insert_post($data, true);
         if (is_wp_error($postID)) {
             $errors = $postID->get_error_messages();
-            msgDebug("WP DB update error: ".print_r($errors, true));
+            msgDebug("WP DB update error: ".msgPrint($errors));
             return 0;
         }
         return $postID;
@@ -808,9 +805,11 @@ class api_product extends api_common
         if ( empty( $skus ) ) {
             $items = [];
         } else {
-            $placeholders = implode( ',', array_fill( 0, count( $skus ), '%s' ) );
-            $rows = $wpdb->get_results( $wpdb->prepare( "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN ($placeholders)",
-                ...$skus ) , OBJECT_K ); // keys by first column = sku
+            // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
+            $rows = $wpdb->get_results( 
+                $wpdb->prepare( 
+                    "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN (" . implode( ',', array_fill( 0, count( $skus ), '%s' ) ) . ")",
+                    ...$skus ), OBJECT_K );
         }
         foreach ($items as $item) {
             $sku = trim($item['SKU'] ?? '');
@@ -953,7 +952,7 @@ class api_product extends api_common
 
     private function priceTiers(&$product, $tiers=[])
     {
-        msgDebug("\nEntering priceTiers with tiers = ".print_r($tiers, true));
+        msgDebug("\nEntering priceTiers with tiers = ".msgPrint($tiers));
         if (!empty($tiers) && is_array($tiers)) {
             // Sort by qty ascending (important!)
             usort($tiers, fn($a, $b) => $a['qty'] <=> $b['qty']);
@@ -974,12 +973,12 @@ class api_product extends api_common
      */
     public function productSync($data)
     {
-        msgDebug("\nEntered productSync with data = ".print_r($data, true));
+        msgDebug("\nEntered productSync with data = ".msgPrint($data));
         $bizSKUs = json_decode($data['syncSkus'], true); // need this if size > 1000 to avoid Apache truncation
         $wooProducts = $this->get_meta_values( $meta_key='_sku', 'product');
-        msgDebug("\nRead WooCommerce Products of size: ".sizeof($wooProducts)."and values = ".print_r($wooProducts, true));
+        msgDebug("\nRead WooCommerce Products of size: ".sizeof($wooProducts)."and values = ".msgPrint($wooProducts));
         $skus = array_diff($wooProducts, $bizSKUs);
-        msgDebug("\ndiff results of size: ".sizeof($skus)." and values = ".print_r($skus, true));
+        msgDebug("\ndiff results of size: ".sizeof($skus)." and values = ".msgPrint($skus));
         if (!empty($data['syncDelete'])) {
             foreach ($skus as $sku) {
                 $post_id  = \wc_get_product_id_by_sku( $sku );
