@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-11
+ * @version    7.x Last Update: 2026-02-13
  * @filesource /lib/common.php
  */
 
@@ -151,52 +151,6 @@ class api_common
         if ( !empty( $notices ) ) { \set_transient( "bizuno_order_download_notices_{$user_id}", $notices, 45 ); }
     }
 
-    public function get_meta_values( $meta_key = '', $post_type = 'post', $post_status = 'publish' ) {
-        if ( empty( $meta_key ) ) {
-            return array();
-        }
-
-        $cache_key = 'bizuno_meta_values_' . md5( $meta_key . '|' . $post_type . '|' . $post_status );
-        $meta_values = get_transient( $cache_key );
-
-        if ( false === $meta_values ) {
-            $posts = get_posts( array(
-                'post_type'      => $post_type,
-                'post_status'    => $post_status,
-                'meta_key'       => $meta_key,          // only posts that have this meta_key
-                'posts_per_page' => -1,                 // get all (see note below)
-                'fields'         => 'ids',              // only need IDs → faster & lighter
-                'no_found_rows'  => true,               // skip pagination count
-                'update_post_meta_cache' => false,
-                'update_post_term_cache' => false,
-            ) );
-
-            $meta_values = array();
-
-            if ( ! empty( $posts ) ) {
-                // Bulk-fetch all meta_values for these post IDs (efficient)
-                $meta_data = get_metadata( 'post', $posts, $meta_key, false ); // false = return array of values, not single
-
-                foreach ( $meta_data as $post_id => $values ) {
-                    // Flatten if multiple values per post, or take first
-                    if ( is_array( $values ) ) {
-                        $meta_values = array_merge( $meta_values, $values );
-                    } else {
-                        $meta_values[] = $values;
-                    }
-                }
-
-                // Optional: unique + sort if that's your intent (get_col returns unique by nature in many cases)
-                $meta_values = array_unique( $meta_values );
-                sort( $meta_values ); // or asort() if associative needed
-            }
-
-            set_transient( $cache_key, $meta_values, 3600 ); // 1 hour
-        }
-
-        return $meta_values;
-    }
-    
     protected function encrypt_password( $password ) {
        if ( ! function_exists( 'openssl_encrypt' ) ) { return base64_encode( $password ); } // fallback – not ideal
        $key    = wp_salt( 'auth' ); // or wp_salt( 'secure_auth' ) or a constant from wp-config

@@ -1,6 +1,6 @@
 <?php
 /**
- * Plugin Name:       Bizuno API – Inventory/Order Management for WooCommerce
+ * Plugin Name:       Bizuno API
  * Plugin URI:        https://github.com/phreesoft/bizuno-api
  * Description:       Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
  * Version:           7.3.8
@@ -55,8 +55,7 @@ class bizuno_api
         // WooCommerce hooks
         if ( is_plugin_active ( 'woocommerce/woocommerce.php' ) ) {
             // WooCommerce Actions
-            add_action ( 'woocommerce_before_add_to_cart_form',              [ $this->product,  'bizuno_single_product_summary'], 10);
-            add_action ( 'woocommerce_single_product_summary',               [ $this->product,  'bizuno_single_product_summary_new'], 29);
+//            add_action ( 'woocommerce_before_add_to_cart_form',              [ $this->product,  'bizuno_single_product_summary'], 10);
             add_action ( 'woocommerce_before_calculate_totals',              [ $this->order,    'bizuno_before_calculate_totals' ], 9999 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
             add_action ( 'woocommerce_shop_order_list_table_custom_column',  [ $this->admin,    'bizuno_api_order_column_content_hpos' ], 25, 2 ); // Works with HPOS
@@ -77,6 +76,8 @@ class bizuno_api
             add_filter ( 'woocommerce_shop_order_list_table_columns',        [ $this->admin,    'bizuno_api_order_column_header_hpos' ], 20 ); // works with HPOS
             add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,    'bizuno_api_order_preview_filter' ], 10, 2);
             add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
+            // WooCommerce Shortcodes
+            add_shortcode ( 'bizuno_api_price_discounts', [ $this->product, 'bizuno_api_price_discounts_sc' ] );
         }
     }
 
@@ -145,7 +146,7 @@ class bizuno_api
 
         $email = sanitize_email( $request->get_header( 'email' ) );
         $pass  = $request->get_header( 'pass' );
-
+        
         if ( empty( $email ) || empty( $pass ) ) {
             return new WP_Error( 'rest_forbidden', esc_html__( 'Missing credentials.', 'bizuno-api' ), array( 'status' => 401 ) );
         }
@@ -158,7 +159,7 @@ class bizuno_api
 
         // Optional: Add capability check for extra security
         if ( ! user_can( $user->ID, 'manage_woocommerce' ) ) {
-            return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-api' ), array( 'status' => 403 ) );
+//          return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-api' ), array( 'status' => 403 ) );
         }
 
         return true;

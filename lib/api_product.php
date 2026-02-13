@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-11
+ * @version    7.x Last Update: 2026-02-13
  * @filesource /lib/product.php
  */
 
@@ -86,8 +86,8 @@ class api_product extends api_common
         return $this->rest_close($output);
     }
 
-    /************** Product Hooks ******************/
-    public function bizuno_single_product_summary()
+    /************** Product Hooks & Shortcodes ******************/
+    public function bizuno_api_price_discounts_sc()
     {
     global $product;
 
@@ -138,11 +138,6 @@ class api_product extends api_common
         </p>
     </div><p> </p>
     <?php
-    }
-
-    public function bizuno_single_product_summary_new()
-    {
-        echo '<br />...<br />'; 
     }
 
     /************** API Product Processing ******************/
@@ -788,15 +783,10 @@ class api_product extends api_common
     public function productRefresh($items = [], $verbose = true)
     {
         global $wpdb;
-        if (empty($items)) {
-            return ['result' => false, 'note' => 'No items provided'];
-        }
-
+        if (empty($items)) { return ['result' => false, 'note' => 'No items provided']; }
         msgDebug("\nEntering productRefresh with " . count($items) . " items from Bizuno");
-
         $cnt = 0;
         $missingSKUs = [];
-
         // Build list of SKUs to lookup
         $skus = array_filter(array_column($items, 'SKU'));
         if (empty($skus)) { return ['result' => true, 'note' => 'No valid SKUs found']; }
@@ -806,55 +796,41 @@ class api_product extends api_common
             $items = [];
         } else {
             // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
-            $rows = $wpdb->get_results( 
-                $wpdb->prepare( 
-                    "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN (" . implode( ',', array_fill( 0, count( $skus ), '%s' ) ) . ")",
-                    ...$skus ), OBJECT_K );
+            $rows = $wpdb->get_results( $wpdb->prepare( 
+                "SELECT meta_value AS sku, post_id FROM $wpdb->postmeta WHERE meta_key = '_sku' AND meta_value IN (" . implode( ',', array_fill( 0, count( $skus ), '%s' ) ) . ")",
+                ...$skus ), OBJECT_K );
         }
         foreach ($items as $item) {
+            msgDebug("\nWorking with item: ".msgPrint($item));
             $sku = trim($item['SKU'] ?? '');
-            if ($sku === '') {
-                continue;
-            }
-
-            if (!isset($rows[$sku])) {
-                $missingSKUs[] = $sku;
-                continue;
-            }
-
+if ($item['SKU'] == 'W BL93NC487') { msgTrap(); }
+            if ($sku === '') { continue; }
+            msgDebug("\nWe have a sku");
+            if (!isset($rows[$sku])) { $missingSKUs[] = $sku; continue; }
             $product_id = $rows[$sku]->post_id;
             $product = wc_get_product($product_id); // Proper WC_Product object
-            if (!$product) {
-                $missingSKUs[] = $sku;
-                continue;
-            }
-
+            if (!$product) { $missingSKUs[] = $sku; continue; }
+            msgDebug("\nWe have a product");
             $needs_save = false;
-
             // === Manage Stock Setting ===
             $current_manage = $product->get_manage_stock('edit');
             $new_manage     = !empty($this->options['inv_stock_mgt']); // true/false
-
             if ($current_manage !== $new_manage) {
                 $product->set_manage_stock($new_manage);
                 $needs_save = true;
             }
-
             // === Backorders ===
             $current_backorders = $product->get_backorders('edit');
             $new_backorders     = $this->options['inv_backorders'] ?? 'no';
-
             if ($current_backorders !== $new_backorders) {
                 $product->set_backorders($new_backorders);
                 $needs_save = true;
             }
-
             // === Regular Price ===
             if ($this->notEqual($product->get_regular_price('edit'), $item['RegularPrice'])) {
                 $product->set_regular_price($item['RegularPrice']);
                 $needs_save = true;
             }
-
             // === Sale Price ===
             if ($item['SalePrice'] !== null) {
                 if ($this->notEqual($product->get_sale_price('edit'), $item['SalePrice'])) {
@@ -867,19 +843,16 @@ class api_product extends api_common
                     $needs_save = true;
                 }
             }
-
             // === Active Price (WooCommerce auto-handles this, but force sync) ===
             $active = (!empty($item['SalePrice']) && $item['SalePrice'] < $item['RegularPrice'])
                 ? $item['SalePrice']
                 : $item['RegularPrice'];
             $product->set_price($active);
-
             // === Stock Quantity & Status (Only if QtyStock is provided) ===
             if ($item['QtyStock'] !== null) {
                 $qty = (int)$item['QtyStock'];
-
                 $current_qty = $product->get_stock_quantity('edit') ?? 0;
-
+                msgDebug("\nQty from Bizuno = $qty and qty from Cart = $current_qty");
                 // Only update if quantity changed
                 if ($current_qty !== $qty) {
                     // Set quantity: 0 if ≤0, otherwise the actual qty
@@ -887,27 +860,23 @@ class api_product extends api_common
                     $product->set_stock_quantity($set_qty);
                     $needs_save = true;
                 }
-
                 // Set stock status based on quantity
                 $new_status = $qty > 0 ? 'instock' : 'outofstock';
                 if ($product->get_stock_status('edit') !== $new_status) {
                     $product->set_stock_status($new_status);
                     $needs_save = true;
                 }
-
                 // Ensure manage_stock is yes when tracking quantity
                 if (!$product->get_manage_stock('edit')) {
                     $product->set_manage_stock(true);
                     $needs_save = true;
                 }
             }
-
             // === Weight ===
             if ($item['Weight'] !== null && $this->notEqual($product->get_weight('edit'), $item['Weight'])) {
                 $product->set_weight($item['Weight']);
                 $needs_save = true;
             }
-
             // === Tiered Pricing ===
             if (!empty($item['PriceTiers']) && is_array($item['PriceTiers'])) {
                 $new_tiers = $item['PriceTiers'];
@@ -925,23 +894,14 @@ class api_product extends api_common
                     $needs_save = true;
                 }
             }
-
             // Save only if something changed
             if ($needs_save) {
                 $product->save();
                 $cnt++;
             }
         }
-
-        if ($verbose && !empty($missingSKUs)) {
-            msgAdd("Missing in WooCommerce: " . implode(', ', array_unique($missingSKUs)));
-        }
-
-        return [
-            'result' => true,
-            'acted'  => $cnt,
-            'note'   => "Updated $cnt of " . count($items) . " products."
-        ];
+        if ($verbose && !empty($missingSKUs)) { msgAdd("Missing in WooCommerce: " . implode(', ', array_unique($missingSKUs))); }
+        return ['result' => true, 'acted' => $cnt, 'note' => "Updated $cnt of " . count($items) . " products."];
     }
 
     private function notEqual($a, $b) // Helper to compare floats/strings safely
@@ -975,8 +935,8 @@ class api_product extends api_common
     {
         msgDebug("\nEntered productSync with data = ".msgPrint($data));
         $bizSKUs = json_decode($data['syncSkus'], true); // need this if size > 1000 to avoid Apache truncation
-        $wooProducts = $this->get_meta_values( $meta_key='_sku', 'product');
-        msgDebug("\nRead WooCommerce Products of size: ".sizeof($wooProducts)."and values = ".msgPrint($wooProducts));
+        $wooProducts = $this->get_all_woocommerce_skus();
+        msgDebug("\nRead WooCommerce products of size: ".sizeof($wooProducts)." and values = ".msgPrint($wooProducts));
         $skus = array_diff($wooProducts, $bizSKUs);
         msgDebug("\ndiff results of size: ".sizeof($skus)." and values = ".msgPrint($skus));
         if (!empty($data['syncDelete'])) {
@@ -997,6 +957,27 @@ class api_product extends api_common
         if (sizeof($skus) > 0) { return msgAdd($this->lang['msg_sku_missing'].'Bizuno:'.'<br />'.implode(', ', $skus), 'info'); }
         msgAdd($this->lang['msg_sku_sync_success'], 'success');
         return true;
+    }
+
+    /**
+     * Returns a flat array of all non-empty SKUs from WooCommerce products and variations.
+     * @return array<string> Array of SKU strings (e.g., ['ABC123', 'DEF-456', ...])
+     */
+    private function get_all_woocommerce_skus() {
+        $args = [
+            'limit'   => -1,                        // Fetch all
+            'status'  => ['publish'],               // Only published products
+            'type'    => ['simple', 'variable', 'variation'], // Include variations for their SKUs
+            'return'  => 'objects',                 // Need objects to call get_sku()
+        ];
+        $products = wc_get_products( $args );
+        $skus = [];
+        foreach ( $products as $product ) {
+            $sku = $product->get_sku();
+            if ( '' !== $sku ) { $skus[] = $sku; }
+        }
+        // Remove duplicates if any (e.g., same SKU used on multiple items – rare but possible)
+        return array_unique( $skus );
     }
 
     /**

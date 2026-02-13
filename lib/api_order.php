@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-11
+ * @version    7.x Last Update: 2026-02-13
  * @filesource /lib/order.php
  */
 
@@ -83,9 +83,9 @@ class api_order extends api_common
 
     public function bizuno_validate_bulk_quantity($passed, $product_id, $quantity) {
         $product = wc_get_product($product_id);
-        if (!$product) return $passed;
+        if (!$product) { return $passed; }
         $tiers = $product->get_meta('_bizuno_price_tiers', true);
-        if (empty($tiers) || !is_array($tiers)) return $passed;
+        if (empty($tiers) || !is_array($tiers)) { return $passed; }
         usort($tiers, function($a, $b) { return (int)$a['qty'] <=> (int)$b['qty']; });
         $lowest_tier_qty = (int)$tiers[0]['qty'];
         if ($lowest_tier_qty > 1) {
@@ -184,14 +184,15 @@ class api_order extends api_common
     private function mapOrder($order_id)
     {
         $order = \wc_get_order($order_id);
+        $options = get_option( BIZUNO_API_OPT_GROUP, [] );
         // @TODO - get the transaction ID, Payfabric does not set the standard WooCommerce reference,
         // instead they create a postmeta key = _transaction_id
         // Need to properly set this in payfabric method: $order->set_transaction_id($transaction_id); $order->save(); 
         $transID = !empty($order->get_transaction_id()) ? $order->get_transaction_id() : get_post_meta($order_id, '_transaction_id', true);
         $map = [
             'General' => [
-//              'OrderID'         => $this->options['prefix_order'] . $order->get_id(), // force a new invoice
-                'PurchaseOrderID' => $this->options['prefix_order'] . $order->get_id(),
+//              'OrderID'         => $options['prefix_order'] . $order->get_id(), // force a new invoice
+                'PurchaseOrderID' => $options['prefix_order'] . $order->get_id(),
                 'OrderDate'       => substr($order->get_date_created(), 0, 10),
                 'OrderTotal'      => $order->get_total(),
 //              'DiscountTotal'   => $order->get_total_discount(),
@@ -208,7 +209,7 @@ class api_order extends api_common
 //              'Authorization'   => $order_info['_payment_auth_code'], // Authorization code from credit cards that need to be captured to complete the sale
                 'TransactionID'   => $transID], // transaction ID from gateway
             'Billing' => [
-                'CustomerID'      => $this->options['prefix_customer'].$order->get_customer_id(),
+                'CustomerID'      => $options['prefix_customer'].$order->get_customer_id(),
                 'PrimaryName'     => !empty($order->get_billing_company()) ? $order->get_billing_company() : $order->get_formatted_billing_full_name(),
                 'Contact'         => !empty($order->get_billing_company()) ? $order->get_formatted_billing_full_name() : '',
                 'Address1'        => $order->get_billing_address_1(),
@@ -263,10 +264,11 @@ class api_order extends api_common
      */
     public function shipConfirm($orders=[])
     {
-        msgDebug("\nEntering shipConfirm"); // with options = ".msgPrint($this->options));
+        $options = get_option( BIZUNO_API_OPT_GROUP, [] );
+        msgDebug("\nEntering shipConfirm with orders = ".msgPrint($orders));
         $order_cnt = 0;
         $order_list= [];
-        $prefix    = $this->options['prefix_order'];
+        $prefix    = $options['prefix_order'];
         $status    = 'wc-shipped';
         if (!isset($orders['head'])) { return msgAdd("No orders were sent to confirm!", 'info'); }
         foreach ($orders['head'] as $oID => $value) {
@@ -274,7 +276,7 @@ class api_order extends api_common
             if     ($prefix && (strpos($oID, $prefix) !== 0 || strpos($oID, $prefix) === false)) { continue; }
             elseif ($prefix &&  strpos($oID, $prefix) === 0) { $id = substr($oID, strlen($prefix)); }
             else   { $id  = intval($oID); }
-            $msg   = $value . '<br />'.$this->extractTracking($orders['body'][$oID]);
+            $msg   = $value . '<br />'.$orders['body'][$oID];
             $order = \wc_get_order ( $id );
             if (!empty($order)) {
                 $curStat = $order->get_status();
@@ -289,15 +291,5 @@ class api_order extends api_common
         msgAdd(sprintf($this->lang['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
         msgDebug("\nLeaving shipConfirm with order count = $order_cnt");
         return true;
-    }
-    
-    private function extractTracking($pkg=[])
-    {
-        if (empty($pkg['rows'])) { return ''; }
-        $tracking = [];
-        foreach ($pkg['rows'] as $box) {
-            if (!empty($box['tracking_id'])) { $tracking[] = $box['tracking_id']; }
-        }
-        return implode(', ', $tracking);
     }
 }
