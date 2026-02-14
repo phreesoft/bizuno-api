@@ -803,7 +803,6 @@ class api_product extends api_common
         foreach ($items as $item) {
             msgDebug("\nWorking with item: ".msgPrint($item));
             $sku = trim($item['SKU'] ?? '');
-if ($item['SKU'] == 'W BL93NC487') { msgTrap(); }
             if ($sku === '') { continue; }
             msgDebug("\nWe have a sku");
             if (!isset($rows[$sku])) { $missingSKUs[] = $sku; continue; }
