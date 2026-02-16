@@ -55,12 +55,12 @@ class bizuno_api
         // WooCommerce hooks
         if ( is_plugin_active ( 'woocommerce/woocommerce.php' ) ) {
             // WooCommerce Actions
-//            add_action ( 'woocommerce_before_add_to_cart_form',              [ $this->product,  'bizuno_single_product_summary'], 10);
             add_action ( 'woocommerce_before_calculate_totals',              [ $this->order,    'bizuno_before_calculate_totals' ], 9999 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
             add_action ( 'woocommerce_shop_order_list_table_custom_column',  [ $this->admin,    'bizuno_api_order_column_content_hpos' ], 25, 2 ); // Works with HPOS
-            add_action ( 'woocommerce_admin_order_preview_end',              [ $this->admin,    'bizuno_api_order_preview_action' ] );
-            add_action ( 'woocommerce_order_action_bizuno_export_action',    [ $this->order,    'bizuno_api_process_order_meta_box_action' ] );
+            add_action ( 'woocommerce_admin_order_preview_actions_end',      [ $this->admin, 'bizuno_api_order_preview_action' ] );
+            add_action ( 'admin_post_bizuno_export_order',                   [ $this->order, 'bizuno_export_order_handler' ] );
+            add_action ( 'woocommerce_order_action_bizuno_export_order',     [ $this->order, 'bizuno_order_meta_box_action' ] );
             add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10);
             add_action ( 'woocommerce_payment_complete',                     [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
             add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
@@ -74,8 +74,9 @@ class bizuno_api
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
             add_filter ( 'woocommerce_shop_order_list_table_columns',        [ $this->admin,    'bizuno_api_order_column_header_hpos' ], 20 ); // works with HPOS
-            add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,    'bizuno_api_order_preview_filter' ], 10, 2);
-            add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'bizuno_api_add_order_meta_box_filter' ] );
+            add_filter ( 'woocommerce_admin_order_preview_actions',          [ $this->admin,    'bizuno_add_export_preview_action_button' ], 10, 2 );
+            add_filter ( 'woocommerce_admin_order_preview_get_order_details',[ $this->admin,    'add_bizuno_export_preview_data' ], 10, 2 );
+            add_filter ( 'woocommerce_order_actions',                        [ $this->admin,    'add_bizuno_to_order_actions_dropdown' ] );
             // WooCommerce Shortcodes
             add_shortcode ( 'bizuno_api_price_discounts', [ $this->product, 'bizuno_api_price_discounts_sc' ] );
         }

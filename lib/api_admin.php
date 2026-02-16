@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-10
+ * @version    7.x Last Update: 2026-02-16
  * @filesource /lib/admin.php
  */
 
@@ -80,19 +80,57 @@ class api_admin extends api_common
         }
     }
     
-    public function bizuno_api_order_preview_filter( $data, $order ) { // Add download button to Preview pop up
-        $data['bizuno_order_exported'] = $order->get_meta('bizuno_order_exported', true, 'edit') ? 'none' : 'block';
+    function bizuno_add_export_preview_action_button( $actions, $order ) {
+        $order_id = $order->get_id();
+        if ( $order->get_meta( 'bizuno_order_exported' ) == 'yes' ) { return $actions; }
+        // Build secure URL (use admin-post.php for POST, or ajax if preferred)
+        $export_url = wp_nonce_url( add_query_arg( [ 'action' => 'bizuno_export_order', 'biz_order_id' => $order_id ], admin_url( 'admin-post.php' ) ), 'bizuno_export_order' );
+        // Add your custom button (appears next to Edit)
+        $actions['bizuno_export'] = [ 'url' => $export_url, 'name' => __( 'Export to Bizuno', 'bizuno-api' ), 'action' => 'bizuno-export' ]; // CSS class suffix: .button.bizuno-export
+        return $actions;
+    }
+
+    public function add_bizuno_export_preview_data( $data, $order ) {
+        $order_id = $order->get_id();
+        // Base URL for the POST form
+        $data['bizuno_export_form_action'] = admin_url( 'admin-post.php' );
+        // Nonce for the form (standard, since it's in POST)
+        $data['bizuno_export_nonce'] = wp_create_nonce( 'bizuno_export_order' );
+        // Visibility (adjust to your logic, e.g., if already exported)
+        $data['bizuno_show_export_button'] = $order->get_meta( 'bizuno_order_exported') == 'yes'  ? false : true;  // or 'true' / your condition
         return $data;
     }
+
     public function bizuno_api_order_preview_action() {
-        $url = admin_url( 'admin-ajax.php?action=bizuno_api_order_download' );
-        echo '<span style="display:{{ data.bizuno_order_exported }}"><a class="button button-primary button-large" onClick="window.location = \''.esc_url ($url).'&biz_order_id={{ data.data.id }}\';">' . esc_html ( __( 'Export order to Bizuno', 'bizuno-api' ) ) . '</a></span>'."\n";
+        echo '<div style="background: yellow; padding: 10px; margin: 10px 0; text-align: center; border: 2px solid red;">
+        TEST BUTTON - If you see this in the preview modal bottom bar, the hook works!
+    </div>';
+        return;
+        ?>
+        {{#bizuno_show_export_button}}
+        <form method="post" action="{{bizuno_export_form_action}}" style="display: inline-block; margin-left: 8px;">
+            <input type="hidden" name="action" value="bizuno_export_order">
+            <input type="hidden" name="biz_order_id" value="{{data.id}}">
+            <input type="hidden" name="_wpnonce" value="{{bizuno_export_nonce}}">
+            <button type="submit" 
+                    class="button button-primary" 
+                    onclick="return confirm('<?php echo esc_js( __( 'Export this order to Bizuno? You will leave the preview.', 'bizuno-api' ) ); ?>');">
+                <?php esc_html_e( 'Export to Bizuno', 'bizuno-api' ); ?>
+            </button>
+        </form>
+        {{/bizuno_show_export_button}}
+        <?php
     }
-    public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
+    public function add_bizuno_to_order_actions_dropdown( $actions ) {
+        $actions['bizuno_export_order'] = __( 'Export to Bizuno', 'bizuno-api' );
+        return $actions;
+    }
+    
+/*    public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
         if (get_post_meta( get_the_ID(), 'bizuno_order_exported', true ) ) { return $actions; }
         $actions['bizuno_export_action'] = __('Export order to Bizuno', 'bizuno-api');
         return $actions;
-    }
+    } */
 
     public function bizuno_api_add_setting_submenu( ) {
         if ( defined( 'BIZUNO_FS_LIBRARY' ) && is_plugin_active ( "$this->bizLib/$this->bizLib.php" )) {

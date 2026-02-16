@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-13
+ * @version    7.x Last Update: 2026-02-16
  * @filesource /lib/order.php
  */
 
@@ -114,43 +114,29 @@ class api_order extends api_common
         }
     }
 
-    public function bizuno_api_process_order_meta_box_action( $order )
-    {
-        $this->bizuno_api_manual_download($order->id);
-    }
-
-    public function bizuno_api_manual_download( $order_id = 0 ) {
-        // Default to passed $order_id (if called internally)
-        if ( empty( $order_id ) ) {
-            if ( ! isset( $_GET['biz_order_id'] ) || ! isset( $_GET['_wpnonce'] ) ) {
-                wc_add_notice( __( 'Invalid request – missing parameters.', 'bizuno-api' ), 'error' );
-                wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
-                exit;
-            }
-
-            // Verify the nonce – dies with "Are you sure?" if invalid/missing
-            check_admin_referer( 'bizuno_manual_order_export', '_wpnonce' );
-
-            $order_id = (int) $_GET['biz_order_id'];
-        }
-
-        if ( empty( $order_id ) || $order_id <= 0 ) {
-            wc_add_notice( __( 'No valid order ID provided.', 'bizuno-api' ), 'error' );
-            wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
-            exit;
-        }
-
+    public function bizuno_order_meta_box_action( $order ) {
+        // Same export logic
+        $order_id = $order->get_id();
         $resp = $this->orderExport( $order_id );
         $this->setNotices( $resp );
-
-        wp_safe_redirect( esc_url( admin_url( 'edit.php?post_type=shop_order' ) ) );
+        // Redirect to summary page (instead of back to edit screen)
+        wp_safe_redirect( admin_url( 'edit.php?post_type=shop_order' ) );
         exit;
     }
 
-    public function bizuno_api_order_download($order_id)
-    {
-        $this->orderExport($order_id);
+
+    public function bizuno_export_order_handler() {
+        $order_id = absint( $_GET['biz_order_id'] ?? 0 );
+        if ( ! $order_id || ! check_admin_referer( 'bizuno_export_order' ) ) {
+            wp_die( __( 'Security check failed or invalid order.', 'bizuno-api' ) );
+        }
+        if ( ! current_user_can( 'edit_shop_orders' ) ) { wp_die( __( 'No permission.', 'bizuno-api' ) ); }
+        $resp = $this->orderExport( $order_id );
+        $this->setNotices( $resp );
+        wp_safe_redirect( admin_url( 'edit.php?post_type=shop_order' ) );
+        exit;
     }
+
     /**
      * Uses the WordPress REST API to download an order to Bizuno
      * @param string $orderID
@@ -162,9 +148,10 @@ class api_order extends api_common
         $this->client_open();
         if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".msgPrint($order));  } // return;
         msgDebug("\nMapped order = ".msgPrint($order));
-        $resp   = json_decode($this->cURL('post', $order, 'orderAdd'), true);
-        $mainID = !empty($resp['ID']) ? $resp['ID'] : 0;
-        msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".msgPrint($resp));
+        $apiResp= json_decode($this->cURL('post', $order, 'orderAdd'), true );
+        msgDebug("\nBizuno-API orderExport received back from REST: ".msgPrint($apiResp));
+        $mainID = !empty($apiResp['ID']) ? $apiResp['ID'] : 0;
+        msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".msgPrint($apiResp));
         if ( !empty($mainID) ) {
             msgDebug("\nUpdating post meta as a valid ID was returned.");
             $wcOrder = \wc_get_order($orderID);
@@ -173,7 +160,7 @@ class api_order extends api_common
             $wcOrder->save();
         }
         $this->client_close();
-        return $resp;
+        return $apiResp;
     }
 
     /**
