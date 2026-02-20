@@ -105,12 +105,23 @@ class api_order extends api_common
     }
 
     /************ Hooks for WooCommerce Order Admin page ****************/
-    public function bizuno_api_post_payment($order_id)
-    {
-        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = ".\get_option ( 'bizuno_api_autodownload', false )." and bizuno_order_exported = ".msgPrint(\get_post_meta ( $order_id, 'bizuno_order_exported' )));
-        if ( !empty ( \get_post_meta ( $order_id, 'bizuno_order_exported' ) ) ) { return; } // already downloaded, prevents duplicate download errors
-        if ( in_array ( \get_option ( 'bizuno_api_autodownload', false ), ['on', 'yes', 1] ) ) {
-            $this->orderExport($order_id); // call return to bit bucket as as all messsages are suppressed
+    public function bizuno_api_post_payment( $order_id ) {
+        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = " . get_option( 'bizuno_api_autodownload', false ) . " and bizuno_order_exported = " . msgPrint( get_post_meta( $order_id, 'bizuno_order_exported' ) ) );
+        // Load the order object early (HPOS-safe)
+        $order = wc_get_order( $order_id );
+        if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
+            msgDebug("Invalid or missing WC_Order for ID $order_id - aborting export");
+            return;
+        }
+        // Use object ID for consistency
+        $order_id = $order->get_id();  // ensures int
+        if ( ! empty( get_post_meta( $order_id, 'bizuno_order_exported', true ) ) ) {
+            msgDebug("Order #$order_id already exported - skipping");
+            return;
+        }
+        if ( in_array( get_option( 'bizuno_api_autodownload', false ), [ 'on', 'yes', 1 ] ) ) {
+            msgDebug("Auto-download enabled - exporting order #$order_id");
+            $this->orderExport( $order_id );  // or pass $order if orderExport accepts object
         }
     }
 
@@ -172,10 +183,9 @@ class api_order extends api_common
     {
         $order = \wc_get_order($order_id);
         $options = get_option( BIZUNO_API_OPT_GROUP, [] );
-        // @TODO - get the transaction ID, Payfabric does not set the standard WooCommerce reference,
-        // instead they create a postmeta key = _transaction_id
-        // Need to properly set this in payfabric method: $order->set_transaction_id($transaction_id); $order->save(); 
-        $transID = !empty($order->get_transaction_id()) ? $order->get_transaction_id() : get_post_meta($order_id, '_transaction_id', true);
+        msgDebug("\norder postmeta = ".msgPrint($order->get_meta('_transaction_id', true)));
+        msgDebug("\norder get_transaction_id = ".msgPrint($order->get_transaction_id()));
+        $transID = !empty($order->get_transaction_id()) ? $order->get_transaction_id() : $order->get_meta('_transaction_id', true);
         $map = [
             'General' => [
 //              'OrderID'         => $options['prefix_order'] . $order->get_id(), // force a new invoice

@@ -30,6 +30,10 @@ class bizuno_api
 {
     private $bizEnabled= false;
     private $bizLib    = 'bizuno-wp'; // needed to load Bizuno environment
+    public  $admin;
+    public  $order;
+    public  $product;
+    public  $shipping;
 
     public function __construct()
     {
@@ -58,9 +62,9 @@ class bizuno_api
             add_action ( 'woocommerce_before_calculate_totals',              [ $this->order,    'bizuno_before_calculate_totals' ], 9999 );
             add_action ( 'manage_shop_order_posts_custom_column',            [ $this->admin,    'bizuno_api_order_column_content' ], 25, 2 ); // Work with Legacy
             add_action ( 'woocommerce_shop_order_list_table_custom_column',  [ $this->admin,    'bizuno_api_order_column_content_hpos' ], 25, 2 ); // Works with HPOS
-            add_action ( 'woocommerce_admin_order_preview_actions_end',      [ $this->admin, 'bizuno_api_order_preview_action' ] );
-            add_action ( 'admin_post_bizuno_export_order',                   [ $this->order, 'bizuno_export_order_handler' ] );
-            add_action ( 'woocommerce_order_action_bizuno_export_order',     [ $this->order, 'bizuno_order_meta_box_action' ] );
+            add_action ( 'woocommerce_admin_order_preview_actions_end',      [ $this->admin,    'bizuno_api_order_preview_action' ] );
+            add_action ( 'admin_post_bizuno_export_order',                   [ $this->order,    'bizuno_export_order_handler' ] );
+            add_action ( 'woocommerce_order_action_bizuno_export_order',     [ $this->order,    'bizuno_order_meta_box_action' ] );
             add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10);
             add_action ( 'woocommerce_payment_complete',                     [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
             add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
