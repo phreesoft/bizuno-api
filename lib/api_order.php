@@ -183,7 +183,7 @@ class api_order extends api_common
     {
         $order = \wc_get_order($order_id);
         $options = get_option( BIZUNO_API_OPT_GROUP, [] );
-        msgDebug("\norder postmeta = ".msgPrint($order->get_meta('_transaction_id', true)));
+        msgDebug("\nEntering mapOrder with order_id = $order_id and order transaction ID = ".msgPrint($order->get_meta('_transaction_id', true)));
         msgDebug("\norder get_transaction_id = ".msgPrint($order->get_transaction_id()));
         $transID = !empty($order->get_transaction_id()) ? $order->get_transaction_id() : $order->get_meta('_transaction_id', true);
         $map = [
