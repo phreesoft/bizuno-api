@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-16
+ * @version    7.x Last Update: 2026-02-22
  * @filesource /lib/order.php
  */
 
@@ -39,7 +39,8 @@ class api_order extends api_common
         parent::__construct();
     }
     /**************** REST Endpoints to set tracking info *************/
-    public function order_confirm($request) { // RESTful API to set the order tracking information
+    public function order_confirm($request)
+    {
         $data   = $this->rest_open($request);
         $result = $this->shipConfirm(!empty($data['data']) ? $data['data'] : []);
         $output = ['result'=>!empty($result)?'Success':'Fail'];
@@ -47,7 +48,8 @@ class api_order extends api_common
     }
 
     /********************* Hooks for WooCommerce  *************************/
-    public function bizuno_before_calculate_totals($cart) {
+    public function bizuno_before_calculate_totals($cart)
+    {
         if (is_admin() && !defined('DOING_AJAX')) { return; }
         if (did_action('woocommerce_before_calculate_totals') >= 2) { return; }
         foreach ($cart->get_cart() as $item) {
@@ -65,7 +67,8 @@ class api_order extends api_common
         }
     }
 
-    public function bizuno_enforce_bulk_increment($args, $product) {
+    public function bizuno_enforce_bulk_increment($args, $product)
+    {
         $tiers = $product->get_meta('_bizuno_price_tiers', true);
         if (empty($tiers) || !is_array($tiers)) {
             return $args; // No tiers → standard behavior
@@ -81,7 +84,8 @@ class api_order extends api_common
         return $args;
     }
 
-    public function bizuno_validate_bulk_quantity($passed, $product_id, $quantity) {
+    public function bizuno_validate_bulk_quantity($passed, $product_id, $quantity)
+    {
         $product = wc_get_product($product_id);
         if (!$product) { return $passed; }
         $tiers = $product->get_meta('_bizuno_price_tiers', true);
@@ -106,23 +110,20 @@ class api_order extends api_common
 
     /************ Hooks for WooCommerce Order Admin page ****************/
     public function bizuno_api_post_payment( $order_id ) {
-        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = " . get_option( 'bizuno_api_autodownload', false ) . " and bizuno_order_exported = " . msgPrint( get_post_meta( $order_id, 'bizuno_order_exported' ) ) );
+        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = " . get_option( 'bizuno_api_autodownload', false ) );
+        if ( ! $order_id ) { return; }
         // Load the order object early (HPOS-safe)
         $order = wc_get_order( $order_id );
         if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
             msgDebug("Invalid or missing WC_Order for ID $order_id - aborting export");
             return;
         }
-        // Use object ID for consistency
-        $order_id = $order->get_id();  // ensures int
-        if ( ! empty( get_post_meta( $order_id, 'bizuno_order_exported', true ) ) ) {
-            msgDebug("Order #$order_id already exported - skipping");
+        if ( $order->get_meta( 'bizuno_order_exported', true ) == 'yes' ) {
+            msgDebug("Order #{$order->get_id()} already exported - skipping");
             return;
         }
-        if ( in_array( get_option( 'bizuno_api_autodownload', false ), [ 'on', 'yes', 1 ] ) ) {
-            msgDebug("Auto-download enabled - exporting order #$order_id");
-            $this->orderExport( $order_id );  // or pass $order if orderExport accepts object
-        }
+        msgDebug("Auto-download enabled - exporting order #".$order->get_id());
+        $this->orderExport( $order->get_id() );  // or pass $order if orderExport accepts object
     }
 
     public function bizuno_order_meta_box_action( $order ) {

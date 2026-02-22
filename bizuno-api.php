@@ -65,15 +65,17 @@ class bizuno_api
             add_action ( 'woocommerce_admin_order_preview_actions_end',      [ $this->admin,    'bizuno_api_order_preview_action' ] );
             add_action ( 'admin_post_bizuno_export_order',                   [ $this->order,    'bizuno_export_order_handler' ] );
             add_action ( 'woocommerce_order_action_bizuno_export_order',     [ $this->order,    'bizuno_order_meta_box_action' ] );
-            add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10);
-            add_action ( 'woocommerce_payment_complete',                     [ $this->order,    'bizuno_api_post_payment' ], 10, 1);
+            add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10 );
+            // The woocommerce_payment_complete hook does not fire in the Payfabric plugin so hook the thank you page
+//          add_action ( 'woocommerce_payment_complete',                     [ $this->order,    'bizuno_api_post_payment' ], 10, 1 );
+            add_action ( 'woocommerce_thankyou',                             [ $this->order,    'bizuno_api_post_payment' ], 20, 1 );
             add_action ( 'woocommerce_review_order_before_cart_contents',    [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'woocommerce_after_checkout_validation',            [ $this->shipping, 'bizuno_validate_order' ], 10 );
             add_action ( 'shutdown',                                         [ $this,           'bizuno_write_debug' ], 999999 );
             add_action ( 'woocommerce_shipping_init',                        'bizuno_shipping_method_init' );
             // WooCommerce Filters
-            add_filter ( 'woocommerce_quantity_input_args',                  [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2);
-            add_filter ( 'woocommerce_add_to_cart_validation',               [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3);
+            add_filter ( 'woocommerce_quantity_input_args',                  [ $this->order,    'bizuno_enforce_bulk_increment'], 10, 2 );
+            add_filter ( 'woocommerce_add_to_cart_validation',               [ $this->order,    'bizuno_validate_bulk_quantity'], 10, 3 );
             add_filter ( 'woocommerce_shipping_methods',                     [ $this->shipping, 'add_bizuno_shipping_method' ] );
             add_filter ( 'wc_order_statuses',                                [ $this->admin,    'add_shipped_to_order_statuses' ] );
             add_filter ( 'manage_edit-shop_order_columns',                   [ $this->admin,    'bizuno_api_order_column_header' ], 20 ); // Works with legacy
@@ -253,12 +255,7 @@ function bizuno_api_uninstall() {
 
     // === 1. Legacy CPT orders (pre-HPOS or compatibility mode) ===
     // phpcs:ignore WordPress.DB.DirectDatabaseQuery.DirectQuery,WordPress.DB.DirectDatabaseQuery.NoCaching -- Fast SKU lookup on core table; caching not needed for one-off admin/sync use
-    $wpdb->query(
-        $wpdb->prepare(
-            "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s",
-            'bizuno_order_exported'
-        )
-    );
+    $wpdb->query( $wpdb->prepare( "DELETE FROM {$wpdb->postmeta} WHERE meta_key = %s", 'bizuno_order_exported' ) );
 
     // === 2. HPOS orders (WooCommerce 7.1+ with HPOS enabled) ===
     $table_name = $wpdb->prefix . 'wc_orders_meta';
@@ -270,11 +267,7 @@ function bizuno_api_uninstall() {
             $wpdb->prepare(
                 // Use %i placeholder for identifiers (table/column names) – available in WP 6.2+
                 // If supporting < WP 6.2, fall back to direct interpolation with comment suppression
-                "DELETE FROM %i WHERE meta_key = %s",
-                $table_name,
-                'bizuno_order_exported'
-            )
-        );
+                "DELETE FROM %i WHERE meta_key = %s", $table_name, 'bizuno_order_exported' ) );
     }
 
     // Optional logging – only in debug mode, and use wc_get_logger() for WooCommerce context (better)
