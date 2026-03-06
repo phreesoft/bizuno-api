@@ -33,6 +33,10 @@ class api_order extends api_common
 {
     public  $userID= 0;
     private $host  = 'https://www.payfabric.com';
+    public  $locale= [
+        'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
+    ];
+
 
     function __construct()
     {
@@ -286,7 +290,7 @@ class api_order extends api_common
                 }
             }
         }
-        msgAdd(sprintf($this->lang['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
+        msgAdd(sprintf($this->locale['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
         msgDebug("\nLeaving shipConfirm with order count = $order_cnt");
         return true;
     }

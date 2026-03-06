@@ -31,10 +31,14 @@ if ( ! defined( 'ABSPATH' ) ) exit;
 
 class api_product extends api_common
 {
-    public $productID  = 0;
+    public $productID = 0;
     private $bizProduct;
     private $canWrite;
     private $fileBirdActive;
+    private $locale = [
+        'msg_sku_missing'     => "The following SKUs are on the cart but are not flagged to be there by ",
+        'msg_sku_sync_success'=> "All products are in Sync.",
+    ];
 
     function __construct()
     {
@@ -953,8 +957,8 @@ class api_product extends api_common
                 \wp_delete_post($post_id, true);
             }
         }
-        if (sizeof($skus) > 0) { return msgAdd($this->lang['msg_sku_missing'].'Bizuno:'.'<br />'.implode(', ', $skus), 'info'); }
-        msgAdd($this->lang['msg_sku_sync_success'], 'success');
+        if (sizeof($skus) > 0) { return msgAdd($this->locale['msg_sku_missing'].'Bizuno:'.'<br />'.implode(', ', $skus), 'info'); }
+        msgAdd($this->locale['msg_sku_sync_success'], 'success');
         return true;
     }
 

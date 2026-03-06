@@ -35,9 +35,6 @@ class api_common
 {
     public $bizLib    = 'bizuno-wp';
     public $api_local = false;
-    public $lang      = [
-        'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
-    ];
 
     function __construct()
     {
