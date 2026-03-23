@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-13
+ * @version    7.x Last Update: 2026-03-20
  * @filesource /lib/product.php
  */
 
@@ -247,14 +247,14 @@ class api_product extends api_common
             $changeType= false;
             if ($product->is_type( 'simple' )  && ('ms'===$productType ) ) { $changeType = 'variable'; }
             if ($product->is_type( 'variable' )&& ('ms'<> $productType ) ) { $changeType = 'simple'; }
-            if (!empty($changeType)) { $product = $this->productChangeType($changeType); }
+            if (!empty($changeType)) { $this->productChangeType($product, $changeType); }
         }
         return $product;
     }
 
     private function productChangeType(&$product, $changeType='simple')
     {
-        msgDebug("\nSetting type to: $changeType");
+        msgDebug("\nEntering productChangeType, setting type to: $changeType");
         if ($changeType === 'simple') { // need to remove the variations
             $variations = $product->get_children();  // Gets variation IDs
             if ($variations) {
