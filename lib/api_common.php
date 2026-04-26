@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-13
+ * @version    7.x Last Update: 2026-04-26
  * @filesource /lib/common.php
  */
 
@@ -92,6 +92,13 @@ class api_common
             'Authorization' => 'Basic ' . $auth,
             'Accept'        => 'application/json',           // Assume JSON API
             'User-Agent'    => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . MODULE_BIZUNO_VERSION . '; +https://www.bizuno.com)'];
+        // Shared-secret token consumed by Bizuno's portal/api endpoints (shipGetRates, orderAdd, ediCron).
+        // Stored encrypted in plugin options; decrypt before sending. Skip header when not configured —
+        // Bizuno will refuse the request and the operator will see the misconfigure surface in logs.
+        if ( ! empty( $options['api_token'] ) ) {
+            $token = $this->decrypt_password( $options['api_token'] );
+            if ( '' !== $token ) { $headers['X-Bizuno-Token'] = $token; }
+        }
         // If you had other headers/cookies in $opts, merge here
         // $headers = array_merge( $headers, $additional_headers );
         // WP HTTP args

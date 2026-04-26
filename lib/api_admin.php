@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-16
+ * @version    7.x Last Update: 2026-04-26
  * @filesource /lib/admin.php
  */
 
@@ -289,6 +289,7 @@ class api_admin extends api_common
             'url'                => '',
             'rest_user_name'     => '',
             'rest_user_pass'     => '',
+            'api_token'          => '',
             'inv_stock_mgt'      => 'off',
             'inv_backorders'     => 'no',
             'prefix_order'       => 'WC',
@@ -337,12 +338,26 @@ class api_admin extends api_common
                     <tr>
                         <th scope="row">REST User Password:</th>
                         <td>
-                            <input type="password" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[rest_user_pass]" 
+                            <input type="password" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[rest_user_pass]"
                                    value="" autocomplete="new-password" size="40" class="regular-text">
                             <?php if ( ! empty( $this->options['rest_user_pass'] ) ) : ?>
                                 <p class="description"><strong>A password is currently stored (hidden for security).</strong><br>Enter a new value to update, or leave blank to keep existing.</p>
                             <?php else : ?>
                                 <p class="description">Enter the WordPress password for the API user.</p>
+                            <?php endif; ?>
+                        </td>
+                    </tr>
+
+                    <!-- API Token (shared secret for portal/api endpoints) -->
+                    <tr>
+                        <th scope="row">API Token:</th>
+                        <td>
+                            <input type="password" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[api_token]"
+                                   value="" autocomplete="new-password" size="40" class="regular-text">
+                            <?php if ( ! empty( $this->options['api_token'] ) ) : ?>
+                                <p class="description"><strong>An API token is currently stored (hidden for security).</strong><br>Enter a new value to update, or leave blank to keep existing.</p>
+                            <?php else : ?>
+                                <p class="description">Shared secret required by the Bizuno portal/api endpoints (shipGetRates, orderAdd, ediCron). Must match the API Token configured in Bizuno → Settings → API → PhreeSoft API. Sent as the <code>X-Bizuno-Token</code> request header.</p>
                             <?php endif; ?>
                         </td>
                     </tr>
@@ -457,6 +472,11 @@ class api_admin extends api_common
                 $new['rest_user_pass'] = $this->encrypt_password( $pass );  // or $pass if plain
             }
             // Blank = keep old
+        }
+        // API token – same blank-keeps-existing convention as the password
+        if ( isset( $input['api_token'] ) ) {
+            $token = trim( wp_unslash( $input['api_token'] ) );
+            if ( '' !== $token ) { $new['api_token'] = $this->encrypt_password( $token ); }
         }
         $checkboxes = ['inv_stock_mgt', 'autodownload'];
         foreach ( $checkboxes as $key ) { $new[$key] = isset( $input[$key] ) && $input[$key] === 'on' ? 'on' : 'off'; }
