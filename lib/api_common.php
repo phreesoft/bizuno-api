@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-04-26
+ * @version    7.x Last Update: 2026-05-04
  * @filesource /lib/common.php
  */
 
@@ -79,19 +79,30 @@ class api_common
         msgDebug( "\nEntering cURL (WP HTTP API) with endPoint = $endPoint and options = " . msgPrint( $options ) );
         $base_url = $options['url'] ?? '';
         $url      = trailingslashit( $base_url ) . '?bizRt=portal/api/' . $endPoint;
-        // Build query string for GET
-        $rData = is_array( $data ) ? http_build_query( $data ) : $data;
+        // Build query string for GET. Strip empty values before encoding — WC's destination
+        // array carries placeholders like address='', address_1='' during rate-shopping
+        // (full address isn't entered until checkout), and ISPConfig + mod_security CRS
+        // rules will 400 the request at the reverse proxy if too many empty params look
+        // like enumeration/fuzzing. Keep `'0'` (legitimate value) but drop `''` and null.
+        if ( is_array( $data ) ) {
+            $data  = array_filter( $data, function ( $v ) { return $v !== '' && $v !== null; } );
+            $rData = http_build_query( $data );
+        } else {
+            $rData = $data;
+        }
         if ( 'get' === strtolower( $type ) && ! empty( $rData ) ) {
             $url .= ( strpos( $url, '?' ) === false ? '?' : '&' ) . $rData;
         }
-        // Authentication: Use Basic Auth header (secure replacement for custom BIZUSER/BIZPASS)
-        $username = $options['rest_user_name'] ?? '';
-        $password = $options['rest_user_pass'] ?? '';
-        $auth     = base64_encode( $username . ':' . $password );
+        // Bizuno's portal/api endpoints authenticate via the X-Bizuno-Token header below.
+        // The Authorization header is a vestige from a pre-token mechanism that Bizuno's
+        // validateApiToken() never reads — sending it here is pure cost: ISPConfig's
+        // mod_security CRS rules flag Basic Authorization on certain patterns and 400 the
+        // request at the reverse proxy before it reaches PHP. Dropped entirely. If a future
+        // myExt endpoint legitimately needs Basic auth, re-add it conditionally on the
+        // endpoint name rather than blanket-attaching it to every call.
         $headers = [
-            'Authorization' => 'Basic ' . $auth,
-            'Accept'        => 'application/json',           // Assume JSON API
-            'User-Agent'    => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . MODULE_BIZUNO_VERSION . '; +https://www.bizuno.com)'];
+            'Accept'     => 'application/json',  // Assume JSON API
+            'User-Agent' => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . MODULE_BIZUNO_VERSION . '; +https://www.bizuno.com)'];
         // Shared-secret token consumed by Bizuno's portal/api endpoints (shipGetRates, orderAdd, ediCron).
         // Stored encrypted in plugin options; decrypt before sending. Skip header when not configured —
         // Bizuno will refuse the request and the operator will see the misconfigure surface in logs.
@@ -124,15 +135,19 @@ class api_common
         if ( 200 !== $status_code ) { msgAdd( "Received HTTP $status_code from API.", 'caution' ); }
         if ( empty( $body ) )       { msgAdd( "Oops! Received an empty response. Likely a connection/protocol issue (e.g., TLS/ALPN mismatch).", 'caution' ); }
         msgDebug( "\nAPI Common received back from REST: " . msgPrint( $body ) );
-        // If response has 'message' key (your original logic)
+        // Side effect: merge any messageStack the API returned into our local stack so the
+        // operator sees its errors / cautions. Done WITHOUT changing the return type — the
+        // helper consistently returns the raw body string, and callers (api_shipping.php:48,
+        // api_order.php:167) decode it themselves. The previous "smart" return that swapped
+        // between decoded-array and raw-string depending on the response shape was fataling
+        // those callers with `json_decode(): Argument #1 must be of type string, array given`
+        // every time the API returned a message key (which is most error responses).
         $decoded = json_decode( $body, true );
         if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['message'] ) ) {
             msgDebug( "\nMerging the msgStack!" );
             msgMerge( $decoded['message'] );
-            return $decoded;  // Return decoded array for easier use
         }
-        // Fallback: return raw body (or decode if always JSON)
-        return $body;  // Or json_decode( $body, true ) if you expect JSON
+        return $body;
     }
 
     public function setNotices($resp=[])
@@ -167,12 +182,21 @@ class api_common
 
     public function decrypt_password( $encrypted ) {
         if ( empty( $encrypted ) ) { return ''; }
-        $decoded = base64_decode( $encrypted );
-        $parts   = explode( '::', $decoded, 2 );
-        if ( count( $parts ) !== 2 ) { return base64_decode( $decoded ); } // fallback for old plain/base64 values
+        // Values saved through encrypt_password() base64-encode `<ciphertext>::<base64-iv>`.
+        // Anything else (operator pasted plaintext, or a value from before the encryption
+        // wrapper was added) should round-trip as itself. The previous fallback double-base64-
+        // decoded such inputs into binary garbage, which then went out as the X-Bizuno-Token
+        // header value and tripped mod_security CRS rules at the receiving end (non-printable
+        // bytes in HTTP headers are flagged as protocol violations and 400'd).
+        $decoded = @base64_decode( $encrypted, true );  // strict mode — false on non-base64 input
+        if ( $decoded === false || strpos( $decoded, '::' ) === false ) {
+            return (string) $encrypted;  // plaintext / unrecognized format — pass through verbatim
+        }
+        $parts = explode( '::', $decoded, 2 );
+        if ( count( $parts ) !== 2 ) { return (string) $encrypted; }
         $key    = wp_salt( 'auth' );
         $method = 'aes-256-cbc';
         $decrypted = openssl_decrypt( $parts[0], $method, substr( $key, 0, 32 ), 0, base64_decode( $parts[1] ) );
-        return $decrypted !== false ? $decrypted : '';
+        return $decrypted !== false ? $decrypted : (string) $encrypted;
     }
 }
