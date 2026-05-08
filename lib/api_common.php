@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-05-04
+ * @version    7.x Last Update: 2026-05-08
  * @filesource /lib/common.php
  */
 
@@ -110,6 +110,14 @@ class api_common
             $token = $this->decrypt_password( $options['api_token'] );
             if ( '' !== $token ) { $headers['X-Bizuno-Token'] = $token; }
         }
+        // Content-Type is required for PHP to auto-populate $_POST on the Bizuno side.
+        // wp_remote_post() only adds it automatically when `body` is an array — we build the
+        // urlencoded string ourselves (above) so it has to be set explicitly. Without this,
+        // Bizuno's portal/api/orderAdd reaches mapPost() with an empty $_POST, addressUpdate()
+        // bails on "primary_name_required", and the response comes back {"result":"Fail","ID":null}.
+        if ( 'POST' === strtoupper( $type ) ) {
+            $headers['Content-Type'] = 'application/x-www-form-urlencoded; charset=UTF-8';
+        }
         // If you had other headers/cookies in $opts, merge here
         // $headers = array_merge( $headers, $additional_headers );
         // WP HTTP args
@@ -153,16 +161,25 @@ class api_common
     public function setNotices($resp=[])
     {
         msgDebug("\nEntering setNotices with resp = ".msgPrint($resp));
-        if ( empty( $resp['messages'] ) ) { return; }
+        // Bizuno's response shape varies by which layer rejected the request:
+        //   - apiOrder::add() (compose succeeded)         → ['messages' => msgQueue()]   (plural)
+        //   - portalApi::orderAdd() returning early       → ['message'  => $msgStack]    (singular, default JSON view)
+        // Both carry the same {error|warning|info|success}=>[{text:..}] structure inside.
+        // Accept either; the singular form is what surfaces "API user not found",
+        // "Illegal Access", and other token/user failures from portal/api.php.
+        $stack = [];
+        if ( ! empty( $resp['messages'] ) && is_array( $resp['messages'] ) ) { $stack = $resp['messages']; }
+        elseif ( ! empty( $resp['message'] ) && is_array( $resp['message'] ) ) { $stack = $resp['message']; }
+        if ( empty( $stack ) ) { return; }
         $notices = [];
         $user_id = get_current_user_id();
         foreach ( ['error', 'warning', 'info', 'success'] as $type ) {
             $wc_type = $type==='success' ? 'success' : ( $type === 'error' ? 'error' : 'warning' );
             msgDebug("\nChecking type = $type");
-            if ( empty( $resp['messages'][$type] ) ) { continue; }
-            foreach ( $resp['messages'][$type] as $msg ) {
+            if ( empty( $stack[$type] ) ) { continue; }
+            foreach ( $stack[$type] as $msg ) {
                 msgDebug("\nFound one...");
-                $text = trim( $msg['text'] ?? '' );
+                $text = trim( is_array( $msg ) ? ( $msg['text'] ?? '' ) : (string) $msg );
                 if ( $text ) { $notices[] = [ 'class'=>"notice notice-{$wc_type} is-dismissible", 'message'=>$text ]; }
             }
         }

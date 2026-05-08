@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-04-26
+ * @version    7.x Last Update: 2026-05-08
  * @filesource /lib/admin.php
  */
 
@@ -155,8 +155,13 @@ class api_admin extends api_common
     public function bizuno_register_general_settings()
     {
         if ( defined( 'BIZUNO_GEN_SETTINGS_ALREADY_CREATED' ) ) { return; }
-        register_setting( 'bizuno_general_options', 'bizuno_general_options', [ $this, 'bizuno_general_sanitize_options' ] );
-        register_setting( 'bizuno_general_options', 'bizuno_general_options', [ $this, 'bizuno_sanitize_password' ] );
+        // Single sanitize callback — bizuno_general_sanitize_options handles both the
+        // username and the encrypted password. The previous second register_setting()
+        // pointed at a non-existent bizuno_sanitize_password method and silently
+        // overrode the working one (last registration wins for a given option_name).
+        register_setting( 'bizuno_general_options', 'bizuno_general_options', [
+            'sanitize_callback' => [ $this, 'bizuno_general_sanitize_options' ],
+        ] );
         add_settings_section( 'bizuno_general_section', 'General Settings', null, BIZUNO_SETTINGS_PAGE_SLUG );
         add_settings_field( 'bizuno_tax_rest_user_name', 'Username @PhreeSoft', [ $this, 'phreesoft_user_field_callback' ], BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
         add_settings_field( 'bizuno_tax_rest_user_pass', 'Password @PhreeSoft', [ $this, 'phreesoft_pass_field_callback' ], BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
@@ -442,11 +447,16 @@ class api_admin extends api_common
     // 3. Register settings & sanitizer
 
     function bizuno_api_register_settings() {
-        register_setting(
-            BIZUNO_API_OPT_GROUP,
-            BIZUNO_API_OPT_GROUP,
-            'bizuno_api_sanitize_options'
-        );
+        // Sanitize callback MUST be a proper callable. Passing the bare string
+        // 'bizuno_api_sanitize_options' resolves to a global function that doesn't
+        // exist (the sanitizer is a method on this class). WP's apply_filters then
+        // returns null and update_option saves null over the entire option group —
+        // wiping the encrypted api_token / rest_user_pass on every save. Symptom:
+        // orderExport stops sending X-Bizuno-Token and Bizuno rejects with
+        // "Illegal Access".
+        register_setting( BIZUNO_API_OPT_GROUP, BIZUNO_API_OPT_GROUP, [
+            'sanitize_callback' => [ $this, 'bizuno_api_sanitize_options' ],
+        ] );
     }
 
     // 4. Sanitizer callback (important for password!)

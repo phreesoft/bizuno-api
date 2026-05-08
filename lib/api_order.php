@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-02-22
+ * @version    7.x Last Update: 2026-05-08
  * @filesource /lib/order.php
  */
 
@@ -160,11 +160,13 @@ class api_order extends api_common
      */
     public function orderExport($orderID=false)
     {
-        if ( empty ( $orderID ) ) { magAdd("Bad orderID passed: $orderID"); return; }
         $this->client_open();
+        if ( empty ( $orderID ) ) { return msgAdd("Bad orderID passed: $orderID"); }
         if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".msgPrint($order));  } // return;
         msgDebug("\nMapped order = ".msgPrint($order));
-        $apiResp= json_decode($this->cURL('post', $order, 'orderAdd'), true );
+        $rawBody = $this->cURL('post', $order, 'orderAdd');
+        $apiResp = json_decode( $rawBody, true );
+        if ( ! is_array( $apiResp ) ) { $apiResp = []; }
         msgDebug("\nBizuno-API orderExport received back from REST: ".msgPrint($apiResp));
         $mainID = !empty($apiResp['ID']) ? $apiResp['ID'] : 0;
         msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".msgPrint($apiResp));
@@ -174,6 +176,19 @@ class api_order extends api_common
             $wcOrder->update_meta_data('bizuno_order_exported', 'yes');
             $wcOrder->save_meta_data();
             $wcOrder->save();
+        } else {
+            // Fail path. setNotices() surfaces structured messages from Bizuno (the
+            // {error|warning|info|success}=>[{text:..}] stack, under either `messages`
+            // or `message`). If the response carries neither — empty body, non-JSON,
+            // or 200 with no stack — synthesize a generic error so the admin always
+            // sees *something* on the redirect; otherwise a silent failure looks
+            // identical to a no-op.
+            $hasStack = ( ! empty( $apiResp['messages'] ) && is_array( $apiResp['messages'] ) )
+                     || ( ! empty( $apiResp['message'] )  && is_array( $apiResp['message'] ) );
+            if ( ! $hasStack ) {
+                $hint = is_string( $rawBody ) && $rawBody !== '' ? wp_strip_all_tags( substr( $rawBody, 0, 240 ) ) : 'no response body';
+                $apiResp['message']['error'][] = [ 'text' => "Bizuno did not accept order #$orderID. Response: $hint" ];
+            }
         }
         $this->client_close();
         return $apiResp;
