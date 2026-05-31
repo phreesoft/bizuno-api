@@ -159,7 +159,7 @@ class api_order extends api_common
     public function orderExport($orderID=false)
     {
         $this->client_open();
-        if ( empty ( $orderID ) ) { return msgAdd("Bad orderID passed: $orderID"); }
+        if ( empty ( $orderID ) ) { return \bizuno_api_msg_add("Bad orderID passed: $orderID"); }
         if (!$order = $this->mapOrder($orderID)) {  } // return;
 
         $rawBody = $this->cURL('post', $order, 'orderAdd');
@@ -284,7 +284,7 @@ class api_order extends api_common
         $order_list= [];
         $prefix    = $options['prefix_order'];
         $status    = 'wc-shipped';
-        if (!isset($orders['head'])) { return msgAdd("No orders were sent to confirm!", 'info'); }
+        if (!isset($orders['head'])) { return \bizuno_api_msg_add("No orders were sent to confirm!", 'info'); }
         foreach ($orders['head'] as $oID => $value) {
             // strip prefix from order ref (WC3044 => 3044) that is the record number
             if     ($prefix && (strpos($oID, $prefix) !== 0 || strpos($oID, $prefix) === false)) { continue; }
@@ -302,7 +302,7 @@ class api_order extends api_common
                 }
             }
         }
-        msgAdd(sprintf($this->locale['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
+        \bizuno_api_msg_add(sprintf($this->locale['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
 
         return true;
     }

@@ -22,6 +22,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 if ( ! defined( 'BIZUNO_API_VERSION' ) ) { define( 'BIZUNO_API_VERSION', '7.3.8' ); }
 
 // Library files for plugin operations
+require_once ( dirname(__FILE__) . '/lib/wp_messages.php' ); // native WordPress messaging (no Bizuno library dependency)
 require_once ( dirname(__FILE__) . '/lib/api_common.php' );
 require_once ( dirname(__FILE__) . '/lib/api_admin.php' );
 require_once ( dirname(__FILE__) . '/lib/api_order.php' );
@@ -96,8 +97,8 @@ class bizuno_api
     }
 
     private function initializeBizuno()
-    {   // Self-contained: load the local messaging shim (no Bizuno library / bizuno-accounting dependency)
-        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' );
+    {   // Self-contained: messaging is loaded via lib/wp_messages.php (native WordPress, no
+        // Bizuno library / bizuno-accounting dependency). Nothing else to bootstrap.
         $this->bizEnabled = true;
     }
 

@@ -46,7 +46,7 @@ class api_product extends api_common
         parent::__construct();
         $this->fileBirdActive = is_plugin_active ( 'filebird/filebird.php' ) || is_plugin_active ( 'filebird-pro/filebird.php' ) ? true : false;
         if ( ! function_exists( 'WP_Filesystem' ) ) { require_once ABSPATH . 'wp-admin/includes/file.php'; }
-        $this->canWrite = ! WP_Filesystem() ? msgAdd("Cannot create image path: $image_dir") : true;
+        $this->canWrite = ! WP_Filesystem() ? \bizuno_api_msg_add("Cannot create image path: $image_dir") : true;
     }
 
     /********************** Cron Events ************************/
@@ -154,7 +154,7 @@ class api_product extends api_common
     {
 
 //      set_time_limit(60); // I don't think this is needed anymore, images are processed via cron
-        if (!is_array($post) || empty($post['SKU'])) { return msgAdd("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
+        if (!is_array($post) || empty($post['SKU'])) { return \bizuno_api_msg_add("Bad SKU passed. Needs to be the inventory field id tag name (SKU)."); }
 
         $this->bizProduct = $this->getProduct($post);
         
@@ -332,7 +332,7 @@ class api_product extends api_common
     {
 
         if (empty($post['WooCommerceCategory'])) {
-            return msgAdd("Error - the category was not passed for product: {$post['SKU']}, it must be set manually in WooCommerce.", 'caution');
+            return \bizuno_api_msg_add("Error - the category was not passed for product: {$post['SKU']}, it must be set manually in WooCommerce.", 'caution');
         }
         $this->endCatOnly = false;
 
@@ -662,15 +662,15 @@ class api_product extends api_common
         if (!$this->canWrite) { return; }
         // Check if directory already exists
         if ( ! $wp_filesystem->is_dir( $image_dir ) ) {
-            if ( ! $wp_filesystem->mkdir( $image_dir, 0755 ) ) { return msgAdd( "Cannot create image folder: $image_dir" ); }
+            if ( ! $wp_filesystem->mkdir( $image_dir, 0755 ) ) { return \bizuno_api_msg_add( "Cannot create image folder: $image_dir" ); }
         }
         $full_path   = $image_dir.$props['name'];
         $dirname     = dirname($full_path);
         if ( ! $wp_filesystem->is_dir( $dirname ) ) {
-            if ( ! $wp_filesystem->mkdir( $dirname, 0755 ) ) { return msgAdd( "Cannot create image path: $dirname" ); }
+            if ( ! $wp_filesystem->mkdir( $dirname, 0755 ) ) { return \bizuno_api_msg_add( "Cannot create image path: $dirname" ); }
         }
         $success = $wp_filesystem->put_contents( $full_path, $contents, 0644 );
-        if ( ! $success ) { return msgAdd( "Cannot write image file: $full_path" ); }
+        if ( ! $success ) { return \bizuno_api_msg_add( "Cannot write image file: $full_path" ); }
 
         $filetype = wp_check_filetype(basename( $filename ), null);
         $args = [
@@ -903,7 +903,7 @@ class api_product extends api_common
                 $cnt++;
             }
         }
-        if ($verbose && !empty($missingSKUs)) { msgAdd("Missing in WooCommerce: " . implode(', ', array_unique($missingSKUs))); }
+        if ($verbose && !empty($missingSKUs)) { \bizuno_api_msg_add("Missing in WooCommerce: " . implode(', ', array_unique($missingSKUs))); }
         return ['result' => true, 'acted' => $cnt, 'note' => "Updated $cnt of " . count($items) . " products."];
     }
 
@@ -957,8 +957,8 @@ class api_product extends api_common
                 \wp_delete_post($post_id, true);
             }
         }
-        if (sizeof($skus) > 0) { return msgAdd($this->locale['msg_sku_missing'].'Bizuno:'.'<br />'.implode(', ', $skus), 'info'); }
-        msgAdd($this->locale['msg_sku_sync_success'], 'success');
+        if (sizeof($skus) > 0) { return \bizuno_api_msg_add($this->locale['msg_sku_missing'].'Bizuno:'.'<br />'.implode(', ', $skus), 'info'); }
+        \bizuno_api_msg_add($this->locale['msg_sku_sync_success'], 'success');
         return true;
     }
 
@@ -1029,7 +1029,7 @@ class api_product extends api_common
                     case 'in': return $value/12;
                 }
             default:
-                msgAdd("length conversion Error","warning");
+                \bizuno_api_msg_add("length conversion Error","warning");
                 return $value;
         }
     }
@@ -1059,7 +1059,7 @@ class api_product extends api_common
                     default: return $value; // covers lbs unit
                 }
             default:
-                msgAdd("Weight conversion Error, received unit $unit_original with return value: $unit_return", 'Warning');
+                \bizuno_api_msg_add("Weight conversion Error, received unit $unit_original with return value: $unit_return", 'Warning');
                 return $value;
         }
     }

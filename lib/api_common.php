@@ -61,9 +61,7 @@ class api_common
     }
     public function rest_close($output=[], $status=200)
     {
-        global $msgStack;
-        $output['message'] = $msgStack->error;
-
+        $output['message'] = \bizuno_api_msg_get( 'error' );
         return new \WP_REST_Response($output, $status);
     }
 
@@ -135,13 +133,13 @@ class api_common
         if ( is_wp_error( $response ) ) { // Handle WP_Error
             $error_msg = 'WP HTTP Error: ' . $response->get_error_message();
 
-            msgAdd( $error_msg, 'error' );
+            \bizuno_api_msg_add( $error_msg, 'error' );
             return false;  // or return null / array() as needed
         }
         $body       = wp_remote_retrieve_body( $response ); // Get useful parts
         $status_code= wp_remote_retrieve_response_code( $response );
-        if ( 200 !== $status_code ) { msgAdd( "Received HTTP $status_code from API.", 'caution' ); }
-        if ( empty( $body ) )       { msgAdd( "Oops! Received an empty response. Likely a connection/protocol issue (e.g., TLS/ALPN mismatch).", 'caution' ); }
+        if ( 200 !== $status_code ) { \bizuno_api_msg_add( "Received HTTP $status_code from API.", 'caution' ); }
+        if ( empty( $body ) )       { \bizuno_api_msg_add( "Oops! Received an empty response. Likely a connection/protocol issue (e.g., TLS/ALPN mismatch).", 'caution' ); }
 
         // Side effect: merge any messageStack the API returned into our local stack so the
         // operator sees its errors / cautions. Done WITHOUT changing the return type — the
@@ -153,7 +151,7 @@ class api_common
         $decoded = json_decode( $body, true );
         if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['message'] ) ) {
 
-            msgMerge( $decoded['message'] );
+            \bizuno_api_msg_merge( $decoded['message'] );
         }
         return $body;
     }

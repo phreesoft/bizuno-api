@@ -47,7 +47,7 @@ class api_shipping extends api_common
 
         $resp = json_decode($this->cURL('get', $package['destination'], 'shipGetRates'), true);
 
-        if (isset($resp['message'])) { msgMerge($resp['message']); }
+        if (isset($resp['message'])) { \bizuno_api_msg_merge($resp['message']); }
         $layout['rates'] = !empty($resp['rates']) ? $resp['rates'] : [];
 
         $this->client_close();
