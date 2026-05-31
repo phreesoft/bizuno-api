@@ -19,6 +19,8 @@ if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
+if ( ! defined( 'BIZUNO_API_VERSION' ) ) { define( 'BIZUNO_API_VERSION', '7.3.8' ); }
+
 // Library files for plugin operations
 require_once ( dirname(__FILE__) . '/lib/api_common.php' );
 require_once ( dirname(__FILE__) . '/lib/api_admin.php' );
@@ -29,7 +31,7 @@ require_once ( dirname(__FILE__) . '/lib/api_shipping.php' );
 class bizuno_api
 {
     private $bizEnabled= false;
-    private $bizLib    = 'bizuno-wp'; // needed to load Bizuno environment
+    private $bizLib    = 'bizuno-accounting'; // needed to load Bizuno environment
     public  $admin;
     public  $order;
     public  $product;
@@ -94,16 +96,8 @@ class bizuno_api
     }
 
     private function initializeBizuno()
-    {
-        if ( !defined( 'BIZUNO_FS_LIBRARY' ) ) {
-            if ( !is_plugin_active( "$this->bizLib/$this->bizLib.php" ) || !file_exists( WP_PLUGIN_DIR . "/$this->bizLib/$this->bizLib.php" ) ) {
-                add_action( 'admin_notices', function() {
-                    echo '<div class="notice notice-warning"><p>The Bizuno Accounting plugin now does requires the Bizuno library plugin available from the Bizuno project website. Click <a href="https://dspind.com/wp-admin/admin.php?page=get-bizuno">HERE</a> to download the plugin!</p></div>';
-                });
-                return;
-            }
-        }
-        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' ); // Initialize Bizuno environment
+    {   // Self-contained: load the local messaging shim (no Bizuno library / bizuno-accounting dependency)
+        require_once ( plugin_dir_path( __FILE__ ) . 'portalCFG.php' );
         $this->bizEnabled = true;
     }
 
@@ -149,7 +143,6 @@ class bizuno_api
     }
     
     public function check_access( WP_REST_Request $request ) {
-        \bizuno\msgDebug( "\nEntering check_access" );
 
         $email = sanitize_email( $request->get_header( 'email' ) );
         $pass  = $request->get_header( 'pass' );
@@ -187,10 +180,7 @@ class bizuno_api
     }
     
     public function bizuno_write_debug() {
-        if ( class_exists( 'WP_Upgrader' ) && ! empty( $GLOBALS['wp_upgrader'] ) ) { return; }
-        // This runs as the VERY LAST thing WordPress does
-        // Right before PHP finishes execution and sends output
-        if ( $this->bizEnabled && function_exists("\\bizuno\\msgDebugWrite" ) ) { \bizuno\msgDebugWrite(); }
+        // Debug trace logging was removed during decouple; nothing to flush at shutdown.
     }
 
     public function activate()
@@ -230,24 +220,6 @@ class bizuno_api
     }
 }
 new bizuno_api();
-
-function bizuno_api_get_html() {
-    if ( ! current_user_can( 'manage_options' ) ) {
-        wp_die( 'Insufficient permissions' );
-    }
-
-    echo '<div class="wrap"><h1>' . esc_html__( 'Get Bizuno', 'bizuno-api' ) . '</h1>';
-
-    if ( is_plugin_active( 'bizuno-accounting/bizuno-accounting.php' ) || is_plugin_active( 'bizuno/bizuno.php' ) ) {
-        echo '<div class="notice notice-success"><p>' . esc_html__( 'Bizuno is already installed and active!', 'bizuno-api' ) . '</p></div>';
-        return;
-    }
-
-    echo '<p>' . esc_html__( 'Install the official Bizuno Accounting plugin from the WordPress repository for full ERP integration.', 'bizuno-api' ) . '</p>';
-    echo '<a href="' . esc_url( admin_url( 'plugin-install.php?tab=plugin-information&plugin=bizuno-accounting' ) ) . '" class="button button-primary">' . esc_html__( 'Install Bizuno Accounting', 'bizuno-api' ) . '</a>';
-
-    echo '</div>';
-}
 
 register_uninstall_hook(__FILE__, 'bizuno_api_uninstall');
 function bizuno_api_uninstall() {

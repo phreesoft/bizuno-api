@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-05-08
+ * @version    7.x Last Update: 2026-05-30
  * @filesource /lib/common.php
  */
 
@@ -33,7 +33,7 @@ define( 'BIZUNO_API_OPT_GROUP', 'bizuno_api_options' );
 
 class api_common
 {
-    public $bizLib    = 'bizuno-wp';
+    public $bizLib    = 'bizuno-accounting';
     public $api_local = false;
 
     function __construct()
@@ -46,16 +46,16 @@ class api_common
     }
     public function client_close()
     {
-        msgDebugWrite();
+
     }
     public function rest_open(\WP_REST_Request $request)
     {
-        msgDebug("\nEntering rest_open");
+
         $this->user = \wp_get_current_user();
         $qParams = $request->get_params(); // retrieve the get parameters
         if (empty($qParams)) { 
             $qParams = $request->get_query_params();
-            msgDebug("\nTried again with get_query_params: ".msgPrint($qParams));
+
         }
         return $qParams;
     }
@@ -63,7 +63,7 @@ class api_common
     {
         global $msgStack;
         $output['message'] = $msgStack->error;
-        msgDebugWrite();
+
         return new \WP_REST_Response($output, $status);
     }
 
@@ -76,7 +76,7 @@ class api_common
     function cURL( $type='get', $data=[], $endPoint='' )
     {
         $options = get_option( 'bizuno_api_options', [] );
-        msgDebug( "\nEntering cURL (WP HTTP API) with endPoint = $endPoint and options = " . msgPrint( $options ) );
+
         $base_url = $options['url'] ?? '';
         $url      = trailingslashit( $base_url ) . '?bizRt=portal/api/' . $endPoint;
         // Build query string for GET. Strip empty values before encoding — WC's destination
@@ -102,7 +102,7 @@ class api_common
         // endpoint name rather than blanket-attaching it to every call.
         $headers = [
             'Accept'     => 'application/json',  // Assume JSON API
-            'User-Agent' => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . MODULE_BIZUNO_VERSION . '; +https://www.bizuno.com)'];
+            'User-Agent' => 'Mozilla/5.0 (compatible; Bizuno-WP-Plugin/' . BIZUNO_API_VERSION . '; +https://www.bizuno.com)'];
         // Shared-secret token consumed by Bizuno's portal/api endpoints (shipGetRates, orderAdd, ediCron).
         // Stored encrypted in plugin options; decrypt before sending. Skip header when not configured —
         // Bizuno will refuse the request and the operator will see the misconfigure surface in logs.
@@ -128,13 +128,13 @@ class api_common
             // If JSON payload needed: $args['body'] = wp_json_encode( $data );
             //     $args['headers']['Content-Type'] = 'application/json';
         }
-        msgDebug( "\nReady to send to url = $url" );
+
         // Execute request
         if ( 'POST' === strtoupper( $type ) ) { $response = wp_remote_post( $url, $args ); }
         else                                  { $response = wp_remote_get( $url, $args ); }
         if ( is_wp_error( $response ) ) { // Handle WP_Error
             $error_msg = 'WP HTTP Error: ' . $response->get_error_message();
-            msgDebug( $error_msg );
+
             msgAdd( $error_msg, 'error' );
             return false;  // or return null / array() as needed
         }
@@ -142,7 +142,7 @@ class api_common
         $status_code= wp_remote_retrieve_response_code( $response );
         if ( 200 !== $status_code ) { msgAdd( "Received HTTP $status_code from API.", 'caution' ); }
         if ( empty( $body ) )       { msgAdd( "Oops! Received an empty response. Likely a connection/protocol issue (e.g., TLS/ALPN mismatch).", 'caution' ); }
-        msgDebug( "\nAPI Common received back from REST: " . msgPrint( $body ) );
+
         // Side effect: merge any messageStack the API returned into our local stack so the
         // operator sees its errors / cautions. Done WITHOUT changing the return type — the
         // helper consistently returns the raw body string, and callers (api_shipping.php:48,
@@ -152,7 +152,7 @@ class api_common
         // every time the API returned a message key (which is most error responses).
         $decoded = json_decode( $body, true );
         if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['message'] ) ) {
-            msgDebug( "\nMerging the msgStack!" );
+
             msgMerge( $decoded['message'] );
         }
         return $body;
@@ -160,7 +160,7 @@ class api_common
 
     public function setNotices($resp=[])
     {
-        msgDebug("\nEntering setNotices with resp = ".msgPrint($resp));
+
         // Bizuno's response shape varies by which layer rejected the request:
         //   - apiOrder::add() (compose succeeded)         → ['messages' => msgQueue()]   (plural)
         //   - portalApi::orderAdd() returning early       → ['message'  => $msgStack]    (singular, default JSON view)
@@ -175,15 +175,15 @@ class api_common
         $user_id = get_current_user_id();
         foreach ( ['error', 'warning', 'info', 'success'] as $type ) {
             $wc_type = $type==='success' ? 'success' : ( $type === 'error' ? 'error' : 'warning' );
-            msgDebug("\nChecking type = $type");
+
             if ( empty( $stack[$type] ) ) { continue; }
             foreach ( $stack[$type] as $msg ) {
-                msgDebug("\nFound one...");
+
                 $text = trim( is_array( $msg ) ? ( $msg['text'] ?? '' ) : (string) $msg );
                 if ( $text ) { $notices[] = [ 'class'=>"notice notice-{$wc_type} is-dismissible", 'message'=>$text ]; }
             }
         }
-        msgDebug("\nnotices is ready to set transients: ".msgPrint($notices));
+
         if ( !empty( $notices ) ) { \set_transient( "bizuno_order_download_notices_{$user_id}", $notices, 45 ); }
     }
 

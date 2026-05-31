@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-05-08
+ * @version    7.x Last Update: 2026-05-30
  * @filesource /lib/order.php
  */
 
@@ -36,7 +36,6 @@ class api_order extends api_common
     public  $locale= [
         'confirm_success' => "Order status update complete, the following %s order(s) were updated: %s",
     ];
-
 
     function __construct()
     {
@@ -114,19 +113,19 @@ class api_order extends api_common
 
     /************ Hooks for WooCommerce Order Admin page ****************/
     public function bizuno_api_post_payment( $order_id ) {
-        msgDebug("\nEntering bizuno_api_post_payment with order_id = $order_id and bizuno_api_autodownload = " . get_option( 'bizuno_api_autodownload', false ) );
+
         if ( ! $order_id ) { return; }
         // Load the order object early (HPOS-safe)
         $order = wc_get_order( $order_id );
         if ( ! $order || ! is_a( $order, 'WC_Order' ) ) {
-            msgDebug("Invalid or missing WC_Order for ID $order_id - aborting export");
+
             return;
         }
         if ( $order->get_meta( 'bizuno_order_exported', true ) == 'yes' ) {
-            msgDebug("Order #{$order->get_id()} already exported - skipping");
+
             return;
         }
-        msgDebug("Auto-download enabled - exporting order #".$order->get_id());
+
         $this->orderExport( $order->get_id() );  // or pass $order if orderExport accepts object
     }
 
@@ -139,7 +138,6 @@ class api_order extends api_common
         wp_safe_redirect( admin_url( 'edit.php?post_type=shop_order' ) );
         exit;
     }
-
 
     public function bizuno_export_order_handler() {
         $order_id = absint( $_GET['biz_order_id'] ?? 0 );
@@ -162,16 +160,16 @@ class api_order extends api_common
     {
         $this->client_open();
         if ( empty ( $orderID ) ) { return msgAdd("Bad orderID passed: $orderID"); }
-        if (!$order = $this->mapOrder($orderID)) { msgDebug("\nError mapping order = ".msgPrint($order));  } // return;
-        msgDebug("\nMapped order = ".msgPrint($order));
+        if (!$order = $this->mapOrder($orderID)) {  } // return;
+
         $rawBody = $this->cURL('post', $order, 'orderAdd');
         $apiResp = json_decode( $rawBody, true );
         if ( ! is_array( $apiResp ) ) { $apiResp = []; }
-        msgDebug("\nBizuno-API orderExport received back from REST: ".msgPrint($apiResp));
+
         $mainID = !empty($apiResp['ID']) ? $apiResp['ID'] : 0;
-        msgDebug("\npost processing with orderID = $orderID and mainID = $mainID and response = ".msgPrint($apiResp));
+
         if ( !empty($mainID) ) {
-            msgDebug("\nUpdating post meta as a valid ID was returned.");
+
             $wcOrder = \wc_get_order($orderID);
             $wcOrder->update_meta_data('bizuno_order_exported', 'yes');
             $wcOrder->save_meta_data();
@@ -203,8 +201,7 @@ class api_order extends api_common
     {
         $order = \wc_get_order($order_id);
         $options = get_option( BIZUNO_API_OPT_GROUP, [] );
-        msgDebug("\nEntering mapOrder with order_id = $order_id and order transaction ID = ".msgPrint($order->get_meta('_transaction_id', true)));
-        msgDebug("\norder get_transaction_id = ".msgPrint($order->get_transaction_id()));
+
         $transID = !empty($order->get_transaction_id()) ? $order->get_transaction_id() : $order->get_meta('_transaction_id', true);
         $map = [
             'General' => [
@@ -282,7 +279,7 @@ class api_order extends api_common
     public function shipConfirm($orders=[])
     {
         $options = get_option( BIZUNO_API_OPT_GROUP, [] );
-        msgDebug("\nEntering shipConfirm with orders = ".msgPrint($orders));
+
         $order_cnt = 0;
         $order_list= [];
         $prefix    = $options['prefix_order'];
@@ -306,7 +303,7 @@ class api_order extends api_common
             }
         }
         msgAdd(sprintf($this->locale['confirm_success'], sizeof($order_list), sizeof($order_list)>0?" (".implode(', ', $order_list).")":''), 'success');
-        msgDebug("\nLeaving shipConfirm with order count = $order_cnt");
+
         return true;
     }
 }

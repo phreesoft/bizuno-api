@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-05-08
+ * @version    7.x Last Update: 2026-05-30
  * @filesource /lib/admin.php
  */
 
@@ -133,12 +133,11 @@ class api_admin extends api_common
     } */
 
     public function bizuno_api_add_setting_submenu( ) {
+        // When the Bizuno Accounting plugin is present it supplies the top-level Bizuno menu (the ERP UI).
+        // Standalone (no accounting plugin), this connector adds no top-level menu.
         if ( defined( 'BIZUNO_FS_LIBRARY' ) && is_plugin_active ( "$this->bizLib/$this->bizLib.php" )) {
-            add_menu_page( 'Bizuno', 'Bizuno', 'manage_options', 'bizuno', 'bizuno_html', 
-                plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/$this->bizLib/$this->bizLib.php" ), 90);            
-        } elseif ( !defined( 'BIZUNO_FS_LIBRARY' ) ) {
-            add_menu_page( 'GET BIZUNO', 'GET BIZUNO', 'manage_options', 'get-bizuno', 'bizuno_api_get_html',
-                plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/bizuno-api/bizuno-apip.php" ), 1);
+            add_menu_page( 'Bizuno', 'Bizuno', 'manage_options', 'bizuno', 'bizuno_html',
+                plugins_url( 'icon_16.png', WP_PLUGIN_DIR . "/$this->bizLib/$this->bizLib.php" ), 90);
         }
     }
 
