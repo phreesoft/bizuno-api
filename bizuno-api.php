@@ -49,6 +49,8 @@ class bizuno_api
         $this->shipping = new \bizuno\api_shipping();
         // WordPress Actions
         add_action ( 'init',                    [ $this, 'initializePlugin' ] );
+        add_action ( 'admin_menu',              [ $this->admin, 'bizuno_ensure_shared_menu_and_general_tab' ], 8 ); // shared Settings->Bizuno page (register-once guarded)
+        add_action ( 'admin_init',              [ $this->admin, 'bizuno_register_general_settings' ] );             // shared RESTful creds (register-once guarded)
         add_action ( 'admin_init',              [ $this->admin, 'bizuno_api_register_settings' ] );
         add_action ( 'admin_menu',              [ $this->admin, 'bizuno_api_add_setting_submenu' ] );
         add_action ( 'admin_notices',           [ $this, 'bizAdminNotices' ], 20 );

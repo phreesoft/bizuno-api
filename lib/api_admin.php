@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-05-30
+ * @version    7.x Last Update: 2026-05-31
  * @filesource /lib/admin.php
  */
 
@@ -151,64 +151,58 @@ class api_admin extends api_common
         define( 'BIZUNO_MENU_ALREADY_CREATED', true );
     }
 
+    // Shared RESTful credentials for the user's Bizuno site (e.g. https://biz.yoursite.com).
+    // Stored in bizuno_general_options and used by every Bizuno WooCommerce plugin. Registered
+    // by whichever plugin loads first; the guard keeps it single across co-active plugins.
     public function bizuno_register_general_settings()
     {
         if ( defined( 'BIZUNO_GEN_SETTINGS_ALREADY_CREATED' ) ) { return; }
-        // Single sanitize callback — bizuno_general_sanitize_options handles both the
-        // username and the encrypted password. The previous second register_setting()
-        // pointed at a non-existent bizuno_sanitize_password method and silently
-        // overrode the working one (last registration wins for a given option_name).
-        register_setting( 'bizuno_general_options', 'bizuno_general_options', [
-            'sanitize_callback' => [ $this, 'bizuno_general_sanitize_options' ],
-        ] );
-        add_settings_section( 'bizuno_general_section', 'General Settings', null, BIZUNO_SETTINGS_PAGE_SLUG );
-        add_settings_field( 'bizuno_tax_rest_user_name', 'Username @PhreeSoft', [ $this, 'phreesoft_user_field_callback' ], BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
-        add_settings_field( 'bizuno_tax_rest_user_pass', 'Password @PhreeSoft', [ $this, 'phreesoft_pass_field_callback' ], BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
+        register_setting( 'bizuno_general_options', 'bizuno_general_options', [ 'sanitize_callback' => [ $this, 'bizuno_general_sanitize_options' ] ] );
+        add_settings_section( 'bizuno_general_section', 'RESTful API Credentials', [ $this, 'bizuno_general_section_text' ], BIZUNO_SETTINGS_PAGE_SLUG );
+        add_settings_field( 'url',            'Server URL',          [ $this, 'bizuno_general_url_cb' ],   BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
+        add_settings_field( 'rest_user_name', 'AJAX/REST User Name', [ $this, 'bizuno_general_user_cb' ],  BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
+        add_settings_field( 'rest_user_pass', 'REST User Password',  [ $this, 'bizuno_general_pass_cb' ],  BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
+        add_settings_field( 'api_token',      'API Token',           [ $this, 'bizuno_general_token_cb' ], BIZUNO_SETTINGS_PAGE_SLUG, 'bizuno_general_section' );
         define( 'BIZUNO_GEN_SETTINGS_ALREADY_CREATED', true );
     }
 
     public function bizuno_general_sanitize_options( $input )
     {
-        $old_options = get_option( 'bizuno_general_options', [] );
-        $new_options = $old_options;
-        if ( isset( $input['bizuno_tax_rest_user_name'] ) ) {
-            $username = sanitize_user( trim( $input['bizuno_tax_rest_user_name'] ), true ); // true = strict mode
-            if ( ! empty( $username ) ) {
-                $new_options['bizuno_tax_rest_user_name'] = $username;
-            } elseif ( empty( $input['bizuno_tax_rest_user_name'] ) && ! empty( $old_options['bizuno_tax_rest_user_name'] ) ) { // User cleared it
-//              $new_options['bizuno_tax_rest_user_name'] remains old value
-            } else {
-                $new_options['bizuno_tax_rest_user_name'] = '';
-            }
-        }
-        if ( isset( $input['bizuno_tax_rest_user_pass'] ) ) {
-            $raw_pass = wp_unslash( trim( $input['bizuno_tax_rest_user_pass'] ) );
-            if ( '' === $raw_pass ) { // Field left blank
-//              $new_options['bizuno_tax_rest_user_pass'] remains old value
-            } elseif ( strlen( $raw_pass ) < 8 ) { // Keep old password on validation failure
-                add_settings_error( 'bizuno_general_options', 'password_too_short', __( 'Password @PhreeSoft must be at least 8 characters long.', 'bizuno-api' ), 'error' );
-            } else {
-                $new_options['bizuno_tax_rest_user_pass'] = $this->encrypt_password( $raw_pass );
-            }
-        }
-        return $new_options;
+        $old = get_option( 'bizuno_general_options', [] );
+        $new = is_array( $old ) ? $old : [];
+        if ( isset( $input['url'] ) )            { $new['url']            = esc_url_raw( trim( $input['url'] ) ); }
+        if ( isset( $input['rest_user_name'] ) ) { $new['rest_user_name'] = sanitize_text_field( trim( $input['rest_user_name'] ) ); }
+        if ( isset( $input['rest_user_pass'] ) ) { $p = trim( wp_unslash( $input['rest_user_pass'] ) ); if ( '' !== $p ) { $new['rest_user_pass'] = $this->encrypt_password( $p ); } }
+        if ( isset( $input['api_token'] ) )      { $t = trim( wp_unslash( $input['api_token'] ) );      if ( '' !== $t ) { $new['api_token']      = $this->encrypt_password( $t ); } }
+        return $new;
     }
 
-    public function phreesoft_user_field_callback()
-    {
-        $options = get_option( 'bizuno_general_options', [] );
-        $value   = isset( $options['bizuno_tax_rest_user_name'] ) ? esc_attr( $options['bizuno_tax_rest_user_name'] ) : '';
-        echo '<input type="text" name="' . esc_attr( 'bizuno_general_options' ) . '[bizuno_tax_rest_user_name]" value="' . esc_attr ( $value ) . '" class="regular-text" />';
-        echo '<p class="description">Username for @PhreeSoft REST API access.</p>';
+    public function bizuno_general_section_text() {
+        echo '<p>RESTful connection to your Bizuno site (e.g. https://biz.yoursite.com). These credentials are shared by all Bizuno WooCommerce plugins.</p>';
     }
-
-    public function phreesoft_pass_field_callback()
-    {
-        $options = get_option( 'bizuno_general_options', [] );
-        $has_pass= ! empty( $options['bizuno_tax_rest_user_pass'] );
-        echo '<input type="password" name="' . esc_attr( 'bizuno_general_options' ) . '[bizuno_tax_rest_user_pass]" value="" autocomplete="new-password" class="regular-text code" />';
-        if ( $has_pass ) { echo '<p class="description"><strong>A password is stored (hidden for security).</strong> Enter a new one to update, or leave blank to keep current.</p>'; }
-        else             { echo '<p class="description">Password for @PhreeSoft REST API access.</p>'; }
+    public function bizuno_general_url_cb() {
+        $o = get_option( 'bizuno_general_options', [] );
+        echo '<input type="url" name="bizuno_general_options[url]" value="' . esc_url( $o['url'] ?? '' ) . '" size="50" class="regular-text">';
+        echo '<p class="description">Full URL to the root of your Bizuno site, e.g. https://biz.yoursite.com</p>';
+    }
+    public function bizuno_general_user_cb() {
+        $o = get_option( 'bizuno_general_options', [] );
+        echo '<input type="text" name="bizuno_general_options[rest_user_name]" value="' . esc_attr( $o['rest_user_name'] ?? '' ) . '" size="40" class="regular-text">';
+        echo '<p class="description">WordPress/Bizuno user name the API connects as. The user must have the proper privileges.</p>';
+    }
+    public function bizuno_general_pass_cb() {
+        $o = get_option( 'bizuno_general_options', [] );
+        echo '<input type="password" name="bizuno_general_options[rest_user_pass]" value="" autocomplete="new-password" size="40" class="regular-text">';
+        echo ! empty( $o['rest_user_pass'] )
+            ? '<p class="description"><strong>A password is stored (hidden for security).</strong> Enter a new value to update, or leave blank to keep existing.</p>'
+            : '<p class="description">Password for the API user.</p>';
+    }
+    public function bizuno_general_token_cb() {
+        $o = get_option( 'bizuno_general_options', [] );
+        echo '<input type="password" name="bizuno_general_options[api_token]" value="" autocomplete="new-password" size="40" class="regular-text">';
+        echo ! empty( $o['api_token'] )
+            ? '<p class="description"><strong>An API token is stored (hidden for security).</strong> Enter a new value to update, or leave blank to keep existing. Sent as the <code>X-Bizuno-Token</code> header.</p>'
+            : '<p class="description">Shared secret for the Bizuno portal/api endpoints; sent as the <code>X-Bizuno-Token</code> header.</p>';
     }
 
     public function bizuno_render_shared_settings_page()
@@ -290,10 +284,6 @@ class api_admin extends api_common
     function bizuno_api_tab_content() {
         // Load current options (with defaults)
         $this->options = get_option( BIZUNO_API_OPT_GROUP, [
-            'url'                => '',
-            'rest_user_name'     => '',
-            'rest_user_pass'     => '',
-            'api_token'          => '',
             'inv_stock_mgt'      => 'off',
             'inv_backorders'     => 'no',
             'prefix_order'       => 'WC',
@@ -314,57 +304,7 @@ class api_admin extends api_common
                 ?>
 
                 <table class="form-table">
-                    <tr>
-                        <td colspan="2"><h3>RESTful API Settings</h3></td>
-                    </tr>
-
-                    <!-- Server URL -->
-                    <tr>
-                        <th scope="row">Server URL:</th>
-                        <td>
-                            <input type="url" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[url]" 
-                                   value="<?php echo esc_url( $this->options['url'] ); ?>" size="50" class="regular-text">
-                            <p class="description">Enter the full URL to the root of the website you are connecting to, e.g. https://biz.yoursite.com</p>
-                        </td>
-                    </tr>
-
-                    <!-- REST User Name -->
-                    <tr>
-                        <th scope="row">AJAX/REST User Name:</th>
-                        <td>
-                            <input type="text" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[rest_user_name]" 
-                                   value="<?php echo esc_attr( $this->options['rest_user_name'] ); ?>" size="40" class="regular-text">
-                            <p class="description">Enter the WordPress user name for the API to connect to. The user must have the proper privileges.</p>
-                        </td>
-                    </tr>
-
-                    <!-- REST User Password -->
-                    <tr>
-                        <th scope="row">REST User Password:</th>
-                        <td>
-                            <input type="password" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[rest_user_pass]"
-                                   value="" autocomplete="new-password" size="40" class="regular-text">
-                            <?php if ( ! empty( $this->options['rest_user_pass'] ) ) : ?>
-                                <p class="description"><strong>A password is currently stored (hidden for security).</strong><br>Enter a new value to update, or leave blank to keep existing.</p>
-                            <?php else : ?>
-                                <p class="description">Enter the WordPress password for the API user.</p>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
-
-                    <!-- API Token (shared secret for portal/api endpoints) -->
-                    <tr>
-                        <th scope="row">API Token:</th>
-                        <td>
-                            <input type="password" name="<?php echo esc_attr( BIZUNO_API_OPT_GROUP ); ?>[api_token]"
-                                   value="" autocomplete="new-password" size="40" class="regular-text">
-                            <?php if ( ! empty( $this->options['api_token'] ) ) : ?>
-                                <p class="description"><strong>An API token is currently stored (hidden for security).</strong><br>Enter a new value to update, or leave blank to keep existing.</p>
-                            <?php else : ?>
-                                <p class="description">Shared secret required by the Bizuno portal/api endpoints (shipGetRates, orderAdd, ediCron). Must match the API Token configured in Bizuno → Settings → API → PhreeSoft API. Sent as the <code>X-Bizuno-Token</code> request header.</p>
-                            <?php endif; ?>
-                        </td>
-                    </tr>
+                    <tr><td colspan="2"><p class="description">RESTful connection credentials live on the <strong>General</strong> tab (shared across Bizuno plugins).</p></td></tr>
 
                     <tr><td colspan="2"><h3>Product Settings</h3></td></tr>
 
@@ -463,30 +403,8 @@ class api_admin extends api_common
         $old = get_option( BIZUNO_API_OPT_GROUP, [] );
         $new = $old;
 
-        // URL – sanitize as URL
-        if ( isset( $input['url'] ) ) {
-            $new['url'] = esc_url_raw( trim( $input['url'] ) );
-        }
-
-        // Username – sanitize as text
-        if ( isset( $input['rest_user_name'] ) ) {
-            $new['rest_user_name'] = sanitize_text_field( trim( $input['rest_user_name'] ) );
-        }
-
-        // Password – minimal handling, encrypt if possible
-        if ( isset( $input['rest_user_pass'] ) ) {
-            $pass = trim( wp_unslash( $input['rest_user_pass'] ) );
-            if ( '' !== $pass ) {
-                // Encrypt (recommended) - add your encrypt/decrypt functions
-                $new['rest_user_pass'] = $this->encrypt_password( $pass );  // or $pass if plain
-            }
-            // Blank = keep old
-        }
-        // API token – same blank-keeps-existing convention as the password
-        if ( isset( $input['api_token'] ) ) {
-            $token = trim( wp_unslash( $input['api_token'] ) );
-            if ( '' !== $token ) { $new['api_token'] = $this->encrypt_password( $token ); }
-        }
+        // RESTful credentials (url / rest_user_name / rest_user_pass / api_token) now live in
+        // the shared bizuno_general_options (General tab), not here.
         $checkboxes = ['inv_stock_mgt', 'autodownload'];
         foreach ( $checkboxes as $key ) { $new[$key] = isset( $input[$key] ) && $input[$key] === 'on' ? 'on' : 'off'; }
         if ( isset( $input['inv_backorders'] ) ) {

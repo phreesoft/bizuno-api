@@ -21,7 +21,7 @@
  * @author     Dave Premo, Bizuno Project <support@bizuno.com>
  * @copyright  2008-2026, PhreeSoft, Inc.
  * @license    https://www.gnu.org/licenses/agpl-3.0.txt
- * @version    7.x Last Update: 2026-05-30
+ * @version    7.x Last Update: 2026-05-31
  * @filesource /lib/common.php
  */
 
@@ -30,6 +30,7 @@ namespace bizuno;
 if ( ! defined( 'ABSPATH' ) ) exit;
 
 define( 'BIZUNO_API_OPT_GROUP', 'bizuno_api_options' );
+if ( ! defined( 'BIZUNO_SETTINGS_PAGE_SLUG' ) ) { define( 'BIZUNO_SETTINGS_PAGE_SLUG', 'bizuno-settings' ); } // shared Settings->Bizuno page slug
 
 class api_common
 {
@@ -73,7 +74,7 @@ class api_common
      */
     function cURL( $type='get', $data=[], $endPoint='' )
     {
-        $options = get_option( 'bizuno_api_options', [] );
+        $options = get_option( 'bizuno_general_options', [] ); // shared RESTful creds (url + api_token)
 
         $base_url = $options['url'] ?? '';
         $url      = trailingslashit( $base_url ) . '?bizRt=portal/api/' . $endPoint;
