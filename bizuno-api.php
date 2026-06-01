@@ -1,25 +1,28 @@
 <?php
 /**
- * Plugin Name:       Bizuno API
+ * Plugin Name:       Bizuno RESTful API for WooCommerce
  * Plugin URI:        https://github.com/phreesoft/bizuno-api
  * Description:       Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
- * Version:           7.3.8
+ * Version:           7.4.2
  * Requires at least: 6.5
  * Tested up to:      6.9
  * Requires PHP:      8.1
+ * Requires Plugins:  woocommerce
  * Author:            PhreeSoft, Inc.
  * Author URI:        https://www.phreesoft.com
  * License:           AGPL-3.0-or-later
  * License URI:       https://www.gnu.org/licenses/agpl-3.0.html
- * Text Domain:       bizuno-api
+ * Text Domain:       bizuno-restful-api-for-woocommerce
  * Domain Path:       /locale
+ * WC requires at least: 8.0
+ * WC tested up to:   9.4
  */
 
 if ( ! defined( 'ABSPATH' ) ) {
     exit; // Exit if accessed directly.
 }
 
-if ( ! defined( 'BIZUNO_API_VERSION' ) ) { define( 'BIZUNO_API_VERSION', '7.3.8' ); }
+if ( ! defined( 'BIZUNO_API_VERSION' ) ) { define( 'BIZUNO_API_VERSION', '7.4.2' ); }
 
 // Library files for plugin operations
 require_once ( dirname(__FILE__) . '/lib/wp_messages.php' ); // native WordPress messaging (no Bizuno library dependency)
@@ -42,6 +45,14 @@ class bizuno_api
     {
         register_activation_hook  ( __FILE__ , [ $this, 'activate' ] );
         register_deactivation_hook( __FILE__ , [ $this, 'deactivate' ] );
+        // Declare WooCommerce HPOS (custom order tables) compatibility. Without this, WooCommerce
+        // flags the plugin as incompatible on HPOS stores. All order access here uses the CRUD
+        // API (wc_get_order / get_meta / save), which is HPOS-safe.
+        add_action( 'before_woocommerce_init', function() {
+            if ( class_exists( '\Automattic\WooCommerce\Utilities\FeaturesUtil' ) ) {
+                \Automattic\WooCommerce\Utilities\FeaturesUtil::declare_compatibility( 'custom_order_tables', __FILE__, true );
+            }
+        } );
         $this->initializeBizuno();
         $this->admin    = new \bizuno\api_admin();
         $this->order    = new \bizuno\api_order();
@@ -108,13 +119,13 @@ class bizuno_api
     {
         add_rewrite_endpoint( 'biz-account-wallet',   EP_ROOT | EP_PAGES ); // for WC add wallet endpoint
         register_post_status( 'wc-shipped', [
-            'label'                     => _x( 'Shipped', 'Order status', 'bizuno-api' ),
+            'label'                     => _x( 'Shipped', 'Order status', 'bizuno-restful-api-for-woocommerce' ),
             'public'                    => true,
             'exclude_from_search'       => false,
             'show_in_admin_all_list'    => true,
             'show_in_admin_status_list' => true,
             /* translators: %s is replaced with the number of orders in this status */
-            'label_count'               => _n_noop( 'Shipped <span class="count">(%s)</span>', 'Shipped <span class="count">(%s)</span>', 'bizuno-api' ) ] );
+            'label_count'               => _n_noop( 'Shipped <span class="count">(%s)</span>', 'Shipped <span class="count">(%s)</span>', 'bizuno-restful-api-for-woocommerce' ) ] );
     }
     
     public function bizuno_api_woocommerce_init()
@@ -151,18 +162,18 @@ class bizuno_api
         $pass  = $request->get_header( 'pass' );
         
         if ( empty( $email ) || empty( $pass ) ) {
-            return new WP_Error( 'rest_forbidden', esc_html__( 'Missing credentials.', 'bizuno-api' ), array( 'status' => 401 ) );
+            return new WP_Error( 'rest_forbidden', esc_html__( 'Missing credentials.', 'bizuno-restful-api-for-woocommerce' ), array( 'status' => 401 ) );
         }
 
         $user = wp_authenticate( $email, $pass );
 
         if ( is_wp_error( $user ) ) {
-            return new WP_Error( 'rest_forbidden', esc_html__( 'Invalid credentials.', 'bizuno-api' ), array( 'status' => 401 ) );
+            return new WP_Error( 'rest_forbidden', esc_html__( 'Invalid credentials.', 'bizuno-restful-api-for-woocommerce' ), array( 'status' => 401 ) );
         }
 
         // Optional: Add capability check for extra security
         if ( ! user_can( $user->ID, 'manage_woocommerce' ) ) {
-//          return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-api' ), array( 'status' => 403 ) );
+//          return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-restful-api-for-woocommerce' ), array( 'status' => 403 ) );
         }
 
         return true;
@@ -267,10 +278,10 @@ function bizuno_shipping_method_init()
             public function __construct( $instance_id = 0 )
             {
                 $this->id                 = 'bizuno_shipping';
-                $this->title              = __( 'Bizuno Shipping Calculator', 'bizuno-api' );
+                $this->title              = __( 'Bizuno Shipping Calculator', 'bizuno-restful-api-for-woocommerce' );
                 $this->instance_id        = absint( $instance_id );
-                $this->method_title       = __( 'Bizuno Shipping', 'bizuno-api' );
-                $this->method_description = __( 'Calculate shipping methods and costs through the Bizuno Accounting plugin', 'bizuno-api' );
+                $this->method_title       = __( 'Bizuno Shipping', 'bizuno-restful-api-for-woocommerce' );
+                $this->method_description = __( 'Calculate shipping methods and costs through the Bizuno Accounting plugin', 'bizuno-restful-api-for-woocommerce' );
                 $this->supports           = ['shipping-zones', 'instance-settings', 'instance-settings-modal', ];
                 $this->init();
             }
@@ -283,10 +294,10 @@ function bizuno_shipping_method_init()
             public function init_form_fields()
             { // The settings
                 $this->instance_form_fields = [
-                    'enabled'=> [ 'title'=> __( 'Enable', 'bizuno-api' ),'type'=>'checkbox','default'=>'no',
-                        'description'=> __( 'Enable Bizuno Accounting calculated shipping', 'bizuno-api' ) ],
-                    'title'  => [ 'title'=> __( 'Title', 'bizuno-api' ), 'type'=>'text',    'default'=> __( 'Shipper Preference', 'bizuno-api' ),
-                        'description'=> __( 'Title to be display on site', 'bizuno-api' ) ] ];
+                    'enabled'=> [ 'title'=> __( 'Enable', 'bizuno-restful-api-for-woocommerce' ),'type'=>'checkbox','default'=>'no',
+                        'description'=> __( 'Enable Bizuno Accounting calculated shipping', 'bizuno-restful-api-for-woocommerce' ) ],
+                    'title'  => [ 'title'=> __( 'Title', 'bizuno-restful-api-for-woocommerce' ), 'type'=>'text',    'default'=> __( 'Shipper Preference', 'bizuno-restful-api-for-woocommerce' ),
+                        'description'=> __( 'Title to be display on site', 'bizuno-restful-api-for-woocommerce' ) ] ];
             }
             public function calculate_shipping( $package=[] )
             {

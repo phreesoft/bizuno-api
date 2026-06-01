@@ -1,122 +1,95 @@
-=== Bizuno API – Inventory/Order Management for WooCommerce ===
-Stable tag: 7.3.8
-Contributors: Bizuno Project Dev Team
+=== Bizuno RESTful API for WooCommerce ===
+Contributors: phreesoft
 Donate link: https://www.bizuno.com/donate/
-Tags: bizuno, erp, accounting, woocommerce, rest-api
+Tags: woocommerce, erp, accounting, rest-api, inventory
 Requires at least: 6.5
 Tested up to: 6.9
 Requires PHP: 8.1
+Stable tag: 7.4.2
 License: AGPL-3.0-or-later
 License URI: https://www.gnu.org/licenses/agpl-3.0.html
 
-Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
+Real-time WooCommerce sync with Bizuno ERP & Accounting: push orders, pull inventory, prices and customers through a secure REST API.
 
 == Description ==
 
-**Bizuno API** is the essential connector that turns your WordPress/WooCommerce powered site into a fully integrated powerhouse with Bizuno Accounting/ERP.
+**Bizuno RESTful API for WooCommerce** is the connector that links your WordPress/WooCommerce store to the Bizuno Accounting/ERP system, so orders, customers, inventory, prices and payments stay in sync without manual exports or double entry.
 
-Push and pull data in real time: orders, customers, inventory levels, products, prices, payments, and more – all securely through our modern RESTful API.
+It works with self-hosted Bizuno or PhreeSoft Cloud, and authenticates with a shared secret token so your store and your books can live on separate domains.
 
-Whether you're running a high-volume online store, multi-store operation, or need automated accounting sync, Bizuno API eliminates double-entry headaches and manual imports forever.
+= Why use it =
 
-= Why Businesses Love Bizuno API =
+* **WooCommerce to Bizuno orders** — push WooCommerce orders into Bizuno as sales orders or invoices, automatically or on demand from the order screen.
+* **Bizuno to WooCommerce inventory & prices** — keep stock levels and pricing accurate across both platforms.
+* **Customer sync** — share customer records so you have one view across store and back office.
+* **Bizuno shipping rates** — optionally calculate WooCommerce shipping through Bizuno.
+* **Secure token authentication** — a shared `X-Bizuno-Token` secret over HTTPS; no store credentials are exposed.
+* **Standalone** — runs as an ordinary WordPress plugin; the Bizuno core library is not required on the store site.
 
-* **Bidirectional WooCommerce ↔ Bizuno Sync**  
-  - New Woo orders → auto-create invoices/sales in Bizuno  
-  - Inventory & price changes in Bizuno → instant WooCommerce update  
-  - Customer data sync both ways – unified CRM across platforms
-
-* **Secure RESTful API Access**  
-  Modern, token-based authentication – safe for production use, custom apps, mobile, or third-party tools.
-
-* **Real-Time Business Automation**  
-  Keep stock accurate, orders flowing, and books up-to-date without delay or errors.
-
-* **Perfect Companion to Bizuno Accounting**  
-  Works hand-in-hand with the Bizuno Accounting portal plugin – use self-hosted Bizuno or PhreeSoft Cloud.
-
-* **Multi-Store & Enterprise Ready**  
-  Scale to multiple WooCommerce stores feeding one central Bizuno ERP instance.
-
-* **Developer Friendly**  
-  Clean endpoints, clear documentation (coming soon in Bizuno docs), and extensible for custom integrations.
-
-Stop wasting time on CSV exports or brittle scripts.  
-**Bizuno API delivers enterprise-grade connectivity with open-source freedom.**
+This plugin is the companion to the Bizuno Accounting portal. Use it alongside self-hosted Bizuno or PhreeSoft Cloud for the complete e-commerce + accounting experience.
 
 == Installation ==
 
-**Quick & Painless Setup**
-
-1. Install & activate **Bizuno API** through the WordPress Plugins screen (or upload from GitHub).
-2. Go to **WooCommerce → Settings → Integrations** (or Bizuno settings if using the full Bizuno portal plugin).
-3. Enter your Bizuno API credentials (API key/secret or token – generated in your Bizuno instance).
-4. Choose what to sync: orders, inventory, customers, products, etc.
-5. Save → magic happens automatically in the background!
-
-For full Bizuno self-hosted users: activate alongside the Bizuno Accounting portal plugin for the complete experience.
+1. Install and activate **Bizuno RESTful API for WooCommerce** from the WordPress Plugins screen. WooCommerce must be installed and active.
+2. Go to **Settings → Bizuno → General** and enter your connection details: Server URL, REST user name, REST password, and API token (generated in your Bizuno instance under the API settings).
+3. Open the **Bizuno API** settings tab and choose your sync options: stock management, backorders, order/customer prefixes, target journal, and auto-download.
+4. Save. Orders can now be exported to Bizuno from the WooCommerce order list or the single-order screen, and inventory/price updates flow back to WooCommerce.
 
 == Frequently Asked Questions ==
 
-= What exactly does this plugin do? =
-It provides a secure gateway so WooCommerce (or custom code) can talk directly to your Bizuno ERP/Accounting system via REST API – no more manual work!
+= What does this plugin do? =
+It provides a secure REST bridge so WooCommerce (or your own code) can exchange orders, inventory, prices and customers with your Bizuno ERP/Accounting system, with no manual import/export.
 
-= Do I need the Bizuno Accounting plugin too? =
-Not on your e-store, Bizuno can reside on a sub-domain or alternate URL to isolate your businesses books from your public presence.
+= Do I need the Bizuno Accounting plugin on my store? =
+No. Bizuno can live on a separate domain or sub-domain to keep your books isolated from your public store. This plugin only needs the connection settings to reach it.
 
 = Is it secure? =
-Yes – uses modern token authentication, HTTPS required, and follows best practices for API security.
+Yes. It uses a shared token sent in the `X-Bizuno-Token` request header over HTTPS and follows WordPress and WooCommerce security best practices.
 
-= Can I sync inventory and prices automatically? =
-Yes! Real-time (or scheduled) bidirectional sync keeps everything consistent across platforms.
+= Can inventory and prices sync automatically? =
+Yes. Bizuno can push inventory and price changes to WooCommerce, and new WooCommerce orders can be pushed to Bizuno automatically or on demand.
+
+= Where do I get an API token? =
+Generate it in your Bizuno instance under the API settings, then paste it into Settings → Bizuno → General on your store.
 
 == Screenshots ==
 
-1. API Settings screen – easy credential entry & sync toggles
-2. Sync status dashboard – monitor real-time data flow
-3. Example: WooCommerce order instantly appears in Bizuno
-4. Inventory levels updating automatically both directions
-5. Secure token generation in Bizuno admin
+1. Settings → Bizuno → General tab: shared connection details (Server URL, REST user name, password, API token).
+2. Bizuno API settings tab: sync options for stock management, backorders, order/customer prefixes, journal and auto-download.
+3. WooCommerce order list showing the Exported column and the "Export to Bizuno" row action.
+4. Single WooCommerce order screen with the "Export to Bizuno" action.
+5. Bizuno Shipping method available in a WooCommerce shipping zone.
 
 == Changelog ==
 
+= 7.4.2 =
+* Renamed to "Bizuno RESTful API for WooCommerce" for the WordPress.org Plugin Directory; text domain updated to match the slug.
+* Decoupled from the Bizuno core library — now a fully standalone WordPress plugin using native WordPress messaging.
+* Shared connection settings (Server URL, REST user name/password, API token) consolidated into a single Settings → Bizuno → General tab used by all Bizuno WooCommerce plugins.
+* Token authentication via the `X-Bizuno-Token` request header.
+* Declares WooCommerce as a required plugin and adds WooCommerce version compatibility headers.
+
 = 7.3.7 =
-* Code fixes to pass WordPress Plugin Checker errors
+* Code fixes to pass WordPress Plugin Check.
 
 = 7.3.6 =
-* Modernized for 2026: PHP 8.3+, WordPress 6.7 compatibility
-* Improved REST security & token handling
-* Better WooCommerce HPOS support
-* Enhanced logging & debug tools for easier troubleshooting
-* Marketing & documentation polish
+* Modernized for PHP 8.x and current WordPress; improved REST security and token handling; better WooCommerce support; enhanced logging.
 
 = 7.3.4 =
-* Architectural alignment with Bizuno 7.3+ portal changes
-* Auto-update readiness for core Bizuno library
+* Architectural alignment with Bizuno 7.3+ portal changes.
 
 = 7.0 =
-* Initial public release for PhreeSoft Cloud + self-hosted Bizuno customers (2025-03)
-
-Earlier versions focused on internal testing & Cloud rollout.
+* Initial public release for PhreeSoft Cloud and self-hosted Bizuno customers.
 
 == Upgrade Notice ==
 
-= 7.3.x =
-Important security & compatibility update.  
-Re-save API settings after upgrade to refresh tokens.  
-No data loss – sync continues seamlessly.
+= 7.4.2 =
+Plugin renamed and now fully standalone. After upgrading, confirm your connection details under Settings → Bizuno → General (Server URL, REST user name/password, API token).
 
 == About PhreeSoft ==
 
-Since creating PhreeBooks in 2007, PhreeSoft has built open-source ERP tools businesses trust.  
-**Bizuno** is our modern flagship – faster, more secure, infinitely extensible.  
-**Bizuno API** completes the ecosystem, connecting your e-commerce front-end to powerful back-office accounting.
+PhreeSoft has built open-source accounting and ERP tools since creating PhreeBooks in 2007. **Bizuno** is our modern flagship, and this plugin connects your WooCommerce store to it.
 
-**Explore More:**  
-🌐 https://www.phreesoft.com  
-🌐 https://www.bizuno.com  
-GitHub: https://github.com/phreesoft/bizuno-api  
-Core Bizuno: https://github.com/phreesoft/bizuno  
-Accounting Portal: https://github.com/phreesoft/bizuno-accounting
-
-Ready to unify your store and accounting? Install Bizuno API today!
+* https://www.phreesoft.com
+* https://www.bizuno.com
+* https://github.com/phreesoft/bizuno-api

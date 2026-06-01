@@ -49,7 +49,7 @@ class api_admin extends api_common
         $reordered_columns = [];
         foreach ( $columns as $key => $column ) {
             $reordered_columns[$key] = $column;
-            if ( $key == 'order_status' ) { $reordered_columns['bizuno_download'] = __( 'Exported', 'bizuno-api'); }
+            if ( $key == 'order_status' ) { $reordered_columns['bizuno_download'] = __( 'Exported', 'bizuno-restful-api-for-woocommerce'); }
         }
         return $reordered_columns;
     }
@@ -63,7 +63,7 @@ class api_admin extends api_common
         if ($column == 'bizuno_download') {
             $exported = $the_order->get_meta( 'bizuno_order_exported', true );
             if (empty($exported)) { ?>
-                <button type="button" class="order-status status-processing tips" data-tip=""><?php echo esc_html ( __( 'No', 'bizuno-api' ) ) ?></button>
+                <button type="button" class="order-status status-processing tips" data-tip=""><?php echo esc_html ( __( 'No', 'bizuno-restful-api-for-woocommerce' ) ) ?></button>
                 <?php
             } else { echo 'X&nbsp;'; }
         }
@@ -74,7 +74,7 @@ class api_admin extends api_common
             $status  = $order->get_status();
             if (empty($exported) && !in_array($status, ['cancelled', 'on-hold'])) {
 ?>
-    <button type="button" class="order-status status-processing tips" data-tip="<?php echo \esc_html( $status ) ?>"><?php echo esc_html ( __( 'No', 'bizuno-api' ) ) ?></button>
+    <button type="button" class="order-status status-processing tips" data-tip="<?php echo \esc_html( $status ) ?>"><?php echo esc_html ( __( 'No', 'bizuno-restful-api-for-woocommerce' ) ) ?></button>
 <?php
             } else { echo \esc_html('&nbsp;'); }
         }
@@ -86,7 +86,7 @@ class api_admin extends api_common
         // Build secure URL (use admin-post.php for POST, or ajax if preferred)
         $export_url = wp_nonce_url( add_query_arg( [ 'action' => 'bizuno_export_order', 'biz_order_id' => $order_id ], admin_url( 'admin-post.php' ) ), 'bizuno_export_order' );
         // Add your custom button (appears next to Edit)
-        $actions['bizuno_export'] = [ 'url' => $export_url, 'name' => __( 'Export to Bizuno', 'bizuno-api' ), 'action' => 'bizuno-export' ]; // CSS class suffix: .button.bizuno-export
+        $actions['bizuno_export'] = [ 'url' => $export_url, 'name' => __( 'Export to Bizuno', 'bizuno-restful-api-for-woocommerce' ), 'action' => 'bizuno-export' ]; // CSS class suffix: .button.bizuno-export
         return $actions;
     }
 
@@ -114,21 +114,21 @@ class api_admin extends api_common
             <input type="hidden" name="_wpnonce" value="{{bizuno_export_nonce}}">
             <button type="submit" 
                     class="button button-primary" 
-                    onclick="return confirm('<?php echo esc_js( __( 'Export this order to Bizuno? You will leave the preview.', 'bizuno-api' ) ); ?>');">
-                <?php esc_html_e( 'Export to Bizuno', 'bizuno-api' ); ?>
+                    onclick="return confirm('<?php echo esc_js( __( 'Export this order to Bizuno? You will leave the preview.', 'bizuno-restful-api-for-woocommerce' ) ); ?>');">
+                <?php esc_html_e( 'Export to Bizuno', 'bizuno-restful-api-for-woocommerce' ); ?>
             </button>
         </form>
         {{/bizuno_show_export_button}}
         <?php
     }
     public function add_bizuno_to_order_actions_dropdown( $actions ) {
-        $actions['bizuno_export_order'] = __( 'Export to Bizuno', 'bizuno-api' );
+        $actions['bizuno_export_order'] = __( 'Export to Bizuno', 'bizuno-restful-api-for-woocommerce' );
         return $actions;
     }
     
 /*    public function bizuno_api_add_order_meta_box_filter( $actions ) { // add download button to order edit page
         if (get_post_meta( get_the_ID(), 'bizuno_order_exported', true ) ) { return $actions; }
-        $actions['bizuno_export_action'] = __('Export order to Bizuno', 'bizuno-api');
+        $actions['bizuno_export_action'] = __('Export order to Bizuno', 'bizuno-restful-api-for-woocommerce');
         return $actions;
     } */
 
@@ -207,7 +207,7 @@ class api_admin extends api_common
 
     public function bizuno_render_shared_settings_page()
     {
-        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Access denied.', 'bizuno-api' ) ); }
+        if ( ! current_user_can( 'manage_options' ) ) { wp_die( esc_html__( 'Access denied.', 'bizuno-restful-api-for-woocommerce' ) ); }
         $active_tab = 'general'; // default
         if ( isset( $_GET['tab'] ) ) {
             // 'switch-tab' is an arbitrary but unique action name — make it descriptive
@@ -233,7 +233,7 @@ class api_admin extends api_common
         } );
         ?>
         <div class="wrap">
-            <h1><?php esc_html_e( 'Bizuno Settings', 'bizuno-api' ); ?></h1>
+            <h1><?php esc_html_e( 'Bizuno Settings', 'bizuno-restful-api-for-woocommerce' ); ?></h1>
             <h2 class="nav-tab-wrapper">
                 <?php foreach ( $tabs as $tab_id => $tab ) : ?>
                     <?php
@@ -248,7 +248,7 @@ class api_admin extends api_common
             <form method="post" action="options.php">
                 <?php
                 if ( isset( $tabs[ $active_tab ]['callback'] ) && is_callable( $tabs[ $active_tab ]['callback'] ) ) { call_user_func( $tabs[ $active_tab ]['callback'] ); }
-                else { echo '<p>' . esc_html__( 'No content for this tab.', 'bizuno-api' ) . '</p>'; }
+                else { echo '<p>' . esc_html__( 'No content for this tab.', 'bizuno-restful-api-for-woocommerce' ) . '</p>'; }
                 if ( in_array( $active_tab, [ 'general' ], true ) ) {
                     settings_fields( 'bizuno_general_options' );
                     submit_button();
@@ -295,7 +295,7 @@ class api_admin extends api_common
         // Use Settings API for proper nonce + saving
         ?>
         <div class="wrap">
-            <h2><?php esc_html_e( 'Bizuno API Settings', 'bizuno-api' ); ?></h2>
+            <h2><?php esc_html_e( 'Bizuno API Settings', 'bizuno-restful-api-for-woocommerce' ); ?></h2>
             <p>The Bizuno interface passes order, product and other information between your business external website and internal Bizuno site.</p>
 
             <form method="post" action="options.php">

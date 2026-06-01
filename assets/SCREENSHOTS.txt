@@ -1,0 +1,32 @@
+WordPress.org plugin assets — Bizuno RESTful API for WooCommerce
+================================================================
+
+This folder maps to the WordPress.org SVN /assets directory (a SIBLING of
+/trunk and /tags — it is NOT shipped inside the plugin zip). Place the files
+here, then copy them into SVN /assets when publishing.
+
+SCREENSHOTS
+-----------
+Capture each as a PNG, name it exactly as below, and drop it in this folder.
+The numbers MUST match the order of the "== Screenshots ==" list in readme.txt.
+Recommended width ~1280px, cropped to the relevant admin panel.
+
+  screenshot-1.png  Settings -> Bizuno -> General tab: Server URL, REST user
+                    name, password, API token.
+  screenshot-2.png  Bizuno API settings tab: stock management, backorders,
+                    order/customer prefixes, journal, auto-download.
+  screenshot-3.png  WooCommerce order list: the Exported column and the
+                    "Export to Bizuno" row action.
+  screenshot-4.png  Single WooCommerce order screen with the "Export to
+                    Bizuno" action.
+  screenshot-5.png  Bizuno Shipping method shown in a WooCommerce shipping
+                    zone.
+
+OPTIONAL (recommended for a polished directory listing)
+-------------------------------------------------------
+  banner-772x250.png    (and optional retina banner-1544x500.png)
+  icon-128x128.png      (and optional retina icon-256x256.png)
+
+NOTE: When running Plugin Check against only the plugin folder, it may warn
+that the readme references screenshots not found in the plugin. That is
+expected — screenshots live in SVN /assets, not in the plugin zip.

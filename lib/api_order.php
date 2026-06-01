@@ -129,25 +129,37 @@ class api_order extends api_common
         $this->orderExport( $order->get_id() );  // or pass $order if orderExport accepts object
     }
 
+    /**
+     * URL of the WooCommerce orders list, correct for both HPOS and the legacy post-based
+     * store. OrderUtil::get_admin_orders_page_url() exists in WC 7.3+; fall back to the
+     * legacy screen if it is somehow unavailable.
+     */
+    private function ordersPageUrl() {
+        if ( class_exists( '\Automattic\WooCommerce\Utilities\OrderUtil' ) ) {
+            return \Automattic\WooCommerce\Utilities\OrderUtil::get_admin_orders_page_url();
+        }
+        return admin_url( 'edit.php?post_type=shop_order' );
+    }
+
     public function bizuno_order_meta_box_action( $order ) {
         // Same export logic
         $order_id = $order->get_id();
         $resp = $this->orderExport( $order_id );
         $this->setNotices( $resp );
-        // Redirect to summary page (instead of back to edit screen)
-        wp_safe_redirect( admin_url( 'edit.php?post_type=shop_order' ) );
+        // Redirect to the orders list (instead of back to the edit screen)
+        wp_safe_redirect( $this->ordersPageUrl() );
         exit;
     }
 
     public function bizuno_export_order_handler() {
         $order_id = absint( $_GET['biz_order_id'] ?? 0 );
         if ( ! $order_id || ! check_admin_referer( 'bizuno_export_order' ) ) {
-            wp_die( __( 'Security check failed or invalid order.', 'bizuno-api' ) );
+            wp_die( __( 'Security check failed or invalid order.', 'bizuno-restful-api-for-woocommerce' ) );
         }
-        if ( ! current_user_can( 'edit_shop_orders' ) ) { wp_die( __( 'No permission.', 'bizuno-api' ) ); }
+        if ( ! current_user_can( 'edit_shop_orders' ) ) { wp_die( __( 'No permission.', 'bizuno-restful-api-for-woocommerce' ) ); }
         $resp = $this->orderExport( $order_id );
         $this->setNotices( $resp );
-        wp_safe_redirect( admin_url( 'edit.php?post_type=shop_order' ) );
+        wp_safe_redirect( $this->ordersPageUrl() );
         exit;
     }
 
