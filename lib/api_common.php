@@ -227,12 +227,17 @@ class api_common
         if ( ! is_readable( $apiFile ) ) { return ''; }
         require_once $apiFile; // defines \bizuno\portalApi (namespaced, no side effects)
         if ( ! class_exists( '\bizuno\portalApi' ) || ! method_exists( '\bizuno\portalApi', $endPoint ) ) { return ''; }
-        // Preserve the live request state before we impersonate the API request.
+        // Snapshot the live request state before we borrow the superglobals. This is an
+        // outbound API *client* that temporarily populates $_POST/$_GET so the in-process
+        // portal API (which reads from them) sees the same request a real HTTP call would —
+        // it is NOT processing a form submission, so nonce verification does not apply. The
+        // original state is restored verbatim in the finally block below.
+        // phpcs:disable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
         $savedPost = $_POST;
         $savedGet  = $_GET;
         $savedReq  = $_REQUEST;
         $hadToken  = array_key_exists( 'HTTP_X_BIZUNO_TOKEN', $_SERVER );
-        $savedTok  = $hadToken ? $_SERVER['HTTP_X_BIZUNO_TOKEN'] : null;
+        $savedTok  = $hadToken ? sanitize_text_field( wp_unslash( $_SERVER['HTTP_X_BIZUNO_TOKEN'] ) ) : null;
         // Rebuild $_POST/$_GET from the exact url-encoded bytes the HTTP path would send,
         // so values are strings with identical nesting (parse_str mirrors PHP's own parsing).
         $parsed = [];
@@ -240,6 +245,7 @@ class api_common
         if ( 'post' === strtolower( $type ) ) { $_POST = $parsed; $_GET = []; }
         else                                  { $_GET  = $parsed; $_POST = []; }
         $_REQUEST = array_merge( $_GET, $_POST );
+        // phpcs:enable WordPress.Security.NonceVerification.Missing, WordPress.Security.NonceVerification.Recommended
         if ( '' !== (string) $token ) { $_SERVER['HTTP_X_BIZUNO_TOKEN'] = $token; }
         $layout = [];
         ob_start(); // swallow any stray output from the core so the WC page is not corrupted

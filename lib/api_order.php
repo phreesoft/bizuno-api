@@ -154,9 +154,9 @@ class api_order extends api_common
     public function bizuno_export_order_handler() {
         $order_id = absint( $_GET['biz_order_id'] ?? 0 );
         if ( ! $order_id || ! check_admin_referer( 'bizuno_export_order' ) ) {
-            wp_die( __( 'Security check failed or invalid order.', 'bizuno-restful-api-for-woocommerce' ) );
+            wp_die( esc_html__( 'Security check failed or invalid order.', 'bizuno-restful-api-for-woocommerce' ) );
         }
-        if ( ! current_user_can( 'edit_shop_orders' ) ) { wp_die( __( 'No permission.', 'bizuno-restful-api-for-woocommerce' ) ); }
+        if ( ! current_user_can( 'edit_shop_orders' ) ) { wp_die( esc_html__( 'No permission.', 'bizuno-restful-api-for-woocommerce' ) ); }
         $resp = $this->orderExport( $order_id );
         $this->setNotices( $resp );
         wp_safe_redirect( $this->ordersPageUrl() );

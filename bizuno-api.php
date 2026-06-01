@@ -5,7 +5,7 @@
  * Description:       Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
  * Version:           7.4.2
  * Requires at least: 6.5
- * Tested up to:      6.9
+ * Tested up to:      7.0
  * Requires PHP:      8.1
  * Requires Plugins:  woocommerce
  * Author:            PhreeSoft, Inc.

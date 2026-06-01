@@ -3,7 +3,7 @@ Contributors: phreesoft
 Donate link: https://www.bizuno.com/donate/
 Tags: woocommerce, erp, accounting, rest-api, inventory
 Requires at least: 6.5
-Tested up to: 6.9
+Tested up to: 7.0
 Requires PHP: 8.1
 Stable tag: 7.4.2
 License: AGPL-3.0-or-later
