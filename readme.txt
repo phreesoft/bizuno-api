@@ -92,4 +92,4 @@ PhreeSoft has built open-source accounting and ERP tools since creating PhreeBoo
 
 * https://www.phreesoft.com
 * https://www.bizuno.com
-* https://github.com/phreesoft/bizuno-api
+* https://github.com/phreesoft/bizuno-restful-api-for-woocommerce

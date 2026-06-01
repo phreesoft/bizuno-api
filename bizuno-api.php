@@ -1,7 +1,7 @@
 <?php
 /**
  * Plugin Name:       Bizuno RESTful API for WooCommerce
- * Plugin URI:        https://github.com/phreesoft/bizuno-api
+ * Plugin URI:        https://github.com/phreesoft/bizuno-restful-api-for-woocommerce
  * Description:       Secure RESTful API bridge for real-time WooCommerce ↔ Bizuno ERP sync: orders, inventory, customers, prices & more.
  * Version:           7.4.2
  * Requires at least: 6.5
