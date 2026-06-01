@@ -1,0 +1,14 @@
+# Paths NOT shipped to the WordPress.org SVN trunk/ and tags/.
+# Read by 10up/action-wordpress-plugin-deploy. Mirror of the local test-zip build.
+# Note: /assets is excluded here because WordPress.org screenshots/banner/icon live
+# in SVN /assets (deployed by the assets workflow), not inside the plugin code.
+/.git
+/.github
+/.gitignore
+/.distignore
+/.DS_Store
+/build
+/assets
+/README.md
+/nbproject
+*.log
