@@ -92,6 +92,27 @@ class api_common
         if ( 'get' === strtolower( $type ) && ! empty( $rData ) ) {
             $url .= ( strpos( $url, '?' ) === false ? '?' : '&' ) . $rData;
         }
+        // Same-site loopback short-circuit. When the Bizuno core library is loaded in this
+        // very PHP process (bizuno-accounting + library active on this site) AND the configured
+        // server URL points back to this same host, a wp_remote_post() to ourselves is a
+        // loopback HTTP request — which many hosts block, throttle, or deadlock (PHP-FPM
+        // waiting on a free worker that is itself). Instead, invoke the Bizuno portal API
+        // in-process and return the same JSON body the HTTP endpoint would have produced.
+        // On any failure we fall through to the normal HTTP path below, so the local path
+        // can never be worse than the prior behavior.
+        if ( $this->isLocalBizuno( $url ) ) {
+            $token     = ! empty( $options['api_token'] ) ? $this->decrypt_password( $options['api_token'] ) : '';
+            $localBody = $this->localApiCall( $type, $endPoint, $rData, $token );
+            if ( '' !== $localBody ) {
+                // Mirror the messageStack merge the HTTP branch performs on the way out.
+                $decoded = json_decode( $localBody, true );
+                if ( json_last_error() === JSON_ERROR_NONE && is_array( $decoded ) && isset( $decoded['message'] ) ) {
+                    \bizuno_api_msg_merge( $decoded['message'] );
+                }
+                return $localBody;
+            }
+            \bizuno_api_msg_add( 'Bizuno local (same-site) API call returned no data; falling back to HTTP loopback.', 'caution' );
+        }
         // Bizuno's portal/api endpoints authenticate via the X-Bizuno-Token header below.
         // The Authorization header is a vestige from a pre-token mechanism that Bizuno's
         // validateApiToken() never reads — sending it here is pure cost: ISPConfig's
@@ -155,6 +176,88 @@ class api_common
             \bizuno_api_msg_merge( $decoded['message'] );
         }
         return $body;
+    }
+
+    /**
+     * True when the Bizuno core library is loaded in THIS PHP process (i.e. the
+     * bizuno-accounting plugin + its library are active on this same site) AND the
+     * configured server URL resolves to this same host. In that situation an HTTP
+     * call to the configured URL would be a loopback to ourselves, so the caller
+     * should invoke the portal API in-process instead. Host comparison is www- and
+     * case-insensitive and is checked against both home_url() and site_url().
+     *
+     * @param string $url The fully-built request URL (configured server + bizRt).
+     * @return bool
+     */
+    private function isLocalBizuno( $url ) {
+        // BIZUNO_FS_LIBRARY is defined by bizuno-accounting/portalCFG.php only when the
+        // core library is booted in-process. No constant -> core is remote -> use HTTP.
+        if ( ! defined( 'BIZUNO_FS_LIBRARY' ) ) { return false; }
+        $target = wp_parse_url( $url, PHP_URL_HOST );
+        if ( empty( $target ) ) { return false; }
+        $norm = function( $host ) { return strtolower( preg_replace( '/^www\./i', '', (string) $host ) ); };
+        $target = $norm( $target );
+        foreach ( [ home_url(), site_url() ] as $selfUrl ) {
+            $self = $norm( wp_parse_url( $selfUrl, PHP_URL_HOST ) );
+            if ( '' !== $self && $target === $self ) { return true; }
+        }
+        return false;
+    }
+
+    /**
+     * Invoke a Bizuno portal API endpoint in-process, returning the same JSON body the
+     * HTTP endpoint (portalAPI.php?bizRt=portal/api/<endPoint>) would have produced.
+     *
+     * The Bizuno portal API methods read request state from $_POST / $_GET and the
+     * X-Bizuno-Token header, set $layout['content'] to a JSON string, and return (the
+     * fatal `exit()` lives in the view renderer, which we deliberately bypass). We mirror
+     * the exact HTTP request bytes via $rData (already array_filter'd + url-encoded by the
+     * caller), run the method, capture $layout['content'], and restore the original
+     * superglobals so the live WooCommerce request is unaffected. Any error returns ''
+     * so cURL() falls back to the HTTP path.
+     *
+     * @param string $type     'get' or 'post'.
+     * @param string $endPoint portalApi method name (orderAdd, getSalesTax, shipGetRates...).
+     * @param string $rData    URL-encoded request data (the same string sent over HTTP).
+     * @param string $token    Decrypted shared API token for the X-Bizuno-Token header.
+     * @return string JSON body, or '' on any failure (caller then falls back to HTTP).
+     */
+    private function localApiCall( $type, $endPoint, $rData, $token ) {
+        $apiFile = BIZUNO_FS_LIBRARY . 'portal/api.php';
+        if ( ! is_readable( $apiFile ) ) { return ''; }
+        require_once $apiFile; // defines \bizuno\portalApi (namespaced, no side effects)
+        if ( ! class_exists( '\bizuno\portalApi' ) || ! method_exists( '\bizuno\portalApi', $endPoint ) ) { return ''; }
+        // Preserve the live request state before we impersonate the API request.
+        $savedPost = $_POST;
+        $savedGet  = $_GET;
+        $savedReq  = $_REQUEST;
+        $hadToken  = array_key_exists( 'HTTP_X_BIZUNO_TOKEN', $_SERVER );
+        $savedTok  = $hadToken ? $_SERVER['HTTP_X_BIZUNO_TOKEN'] : null;
+        // Rebuild $_POST/$_GET from the exact url-encoded bytes the HTTP path would send,
+        // so values are strings with identical nesting (parse_str mirrors PHP's own parsing).
+        $parsed = [];
+        parse_str( (string) $rData, $parsed );
+        if ( 'post' === strtolower( $type ) ) { $_POST = $parsed; $_GET = []; }
+        else                                  { $_GET  = $parsed; $_POST = []; }
+        $_REQUEST = array_merge( $_GET, $_POST );
+        if ( '' !== (string) $token ) { $_SERVER['HTTP_X_BIZUNO_TOKEN'] = $token; }
+        $layout = [];
+        ob_start(); // swallow any stray output from the core so the WC page is not corrupted
+        try {
+            $api = new \bizuno\portalApi();
+            $api->$endPoint( $layout );
+        } catch ( \Throwable $e ) {
+            \bizuno_api_msg_add( 'Local Bizuno API call (' . $endPoint . ') failed: ' . $e->getMessage(), 'caution' );
+            $layout = [];
+        } finally {
+            ob_end_clean();
+            $_POST    = $savedPost;
+            $_GET     = $savedGet;
+            $_REQUEST = $savedReq;
+            if ( $hadToken ) { $_SERVER['HTTP_X_BIZUNO_TOKEN'] = $savedTok; }
+            else             { unset( $_SERVER['HTTP_X_BIZUNO_TOKEN'] ); }
+        }
+        return ( isset( $layout['content'] ) && is_string( $layout['content'] ) ) ? $layout['content'] : '';
     }
 
     public function setNotices($resp=[])
