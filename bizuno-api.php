@@ -81,7 +81,6 @@ class bizuno_api
             add_action ( 'woocommerce_admin_order_preview_actions_end',      [ $this->admin,    'bizuno_api_order_preview_action' ] );
             add_action ( 'admin_post_bizuno_export_order',                   [ $this->order,    'bizuno_export_order_handler' ] );
             add_action ( 'woocommerce_order_action_bizuno_export_order',     [ $this->order,    'bizuno_order_meta_box_action' ] );
-            add_action ( 'wp_ajax_bizuno_api_order_download',                [ $this->order,    'bizuno_api_manual_download' ], 10 );
             // The woocommerce_payment_complete hook does not fire in the Payfabric plugin so hook the thank you page
 //          add_action ( 'woocommerce_payment_complete',                     [ $this->order,    'bizuno_api_post_payment' ], 10, 1 );
             add_action ( 'woocommerce_thankyou',                             [ $this->order,    'bizuno_api_post_payment' ], 20, 1 );
@@ -171,9 +170,13 @@ class bizuno_api
             return new WP_Error( 'rest_forbidden', esc_html__( 'Invalid credentials.', 'bizuno-restful-api-for-woocommerce' ), array( 'status' => 401 ) );
         }
 
-        // Optional: Add capability check for extra security
+        // Authentication is not authorization: these endpoints create/update
+        // products and change order status, so require a store-management
+        // capability. Without this, any valid low-privilege account (e.g. a
+        // subscriber) could trigger product sync/refresh/update and order
+        // confirmation.
         if ( ! user_can( $user->ID, 'manage_woocommerce' ) ) {
-//          return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-restful-api-for-woocommerce' ), array( 'status' => 403 ) );
+            return new WP_Error( 'rest_forbidden', esc_html__( 'Insufficient permissions.', 'bizuno-restful-api-for-woocommerce' ), array( 'status' => 403 ) );
         }
 
         return true;

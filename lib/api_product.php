@@ -543,7 +543,10 @@ class api_product extends api_common
 
         if (empty($post['ProductImageFilename'])) { return; }
         $media = [];
-        require_once( ABSPATH.'wp-admin/includes/image.php' );
+        // Note: wp-admin/includes/image.php is intentionally NOT loaded here.
+        // This path only writes the file and queues the attachment id; the one
+        // image.php function we use (wp_generate_attachment_metadata) runs later
+        // in cron_image(), which loads image.php immediately before that call.
         $this->setImageProps($media, $post['ProductImageDirectory'], $post['ProductImageFilename'], $post['ProductImageData']);
         if (!empty($post['Images']) && is_array($post['Images'])) {
 

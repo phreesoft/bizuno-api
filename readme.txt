@@ -1,6 +1,5 @@
 === Bizuno RESTful API for WooCommerce ===
 Contributors: phreesoft
-Donate link: https://www.bizuno.com/donate/
 Tags: woocommerce, erp, accounting, rest-api, inventory
 Requires at least: 6.5
 Tested up to: 7.0
